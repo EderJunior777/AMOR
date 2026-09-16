@@ -1,0 +1,15 @@
+{
+  "name": "agenda-barbearia",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Site de agendamento para barbearia com atendimento a domicilio e confirmacao pelo WhatsApp.",
+  "scripts": {
+    "dev": "node testes/servidor-local.mjs",
+    "test": "node testes/agenda.test.mjs && node testes/cliente.test.mjs",
+    "test:agenda": "node testes/agenda.test.mjs",
+    "test:cliente": "node testes/cliente.test.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.0"
+  }
+}
