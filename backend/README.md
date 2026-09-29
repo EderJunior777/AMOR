@@ -275,6 +275,15 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    | `testes/servidor-local.mjs` | Desfaz um trecho da correção de ambiente Windows |
    | Outros 17 da raiz (`index.html`, `README.md`, `sw.js`, `assets/*`, `package*.json`...) | Só fim de linha (LF/CRLF), sem mudança de conteúdo |
 
+5. ⚠️ **Dados pessoais no site atual (Netlify), em produção hoje.** A
+   função `netlify/functions/agenda.mjs` grava **nome e telefone de cada
+   reserva** no Netlify Blobs (loja `agenda`, linhas 185-186). A
+   anonimização da Fase 8 (`docs/LGPD-ANONIMIZACAO.md`) só alcança o
+   backend novo. **Precisa de decisão fora desta missão:** por quanto tempo
+   esses registros ficam lá, quem atende pedido de titular sobre eles
+   (hoje, só manualmente) e, na migração para o backend, se são importados,
+   anonimizados ou descartados.
+
 ## Mapa
 
 | Caminho | Conteúdo |
