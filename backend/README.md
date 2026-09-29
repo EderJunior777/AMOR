@@ -17,7 +17,7 @@ só o caminho abaixo foi executado.
 |---|---|---|
 | PHP | **8.4.x** | `composer.json` exige `^8.4`; o lock (Symfony 8) também exige ≥ 8.4. Extensões: `pdo_pgsql`, `mbstring`, `openssl` e as do Laravel (`composer check-platform-reqs --lock`). |
 | Composer | 2.x | `composer install` usa o `composer.lock` (Laravel 13.33.0, PHPUnit 12.5.35). |
-| PostgreSQL | **18** (testado 18.6) | Extensão `btree_gist` disponível (vem no pacote padrão; é *trusted*, o dono do banco cria). |
+| PostgreSQL | **≥ 17** (testado 18.6) | Extensão `btree_gist` disponível (vem no pacote padrão; é *trusted*, o dono do banco cria). O PG 16 não serve: instantes infinitos falham com 22008 antes da constraint `agendamentos_instantes_finitos`. A migration `2026_09_29_000100` recusa servidores mais antigos. |
 | Node | 18+ (testado 24) | Só para o site legado em `../frontend`. |
 
 SQLite **não** serve: os testes recusam rodar fora do PostgreSQL.
@@ -27,7 +27,7 @@ SQLite **não** serve: os testes recusam rodar fora do PostgreSQL.
 | Papel | Usado por | Pode |
 |---|---|---|
 | `cleison` (dono) | **só** migrations: `composer migrar` | DDL (criar/alterar tabelas, triggers) |
-| `cleison_app` | a aplicação e os testes | SELECT/INSERT/UPDATE/DELETE. **Não** pode desligar triggers, apagar constraints, `TRUNCATE` nem criar tabelas (`PrivilegiosTest`). |
+| `cleison_app` | a aplicação e os testes | SELECT/INSERT/UPDATE/DELETE, **exceto** em `ocupacoes_agenda` e `agendamento_eventos`, onde só lê: essas duas tabelas são escritas apenas pelos triggers (`SECURITY DEFINER`, papel dono). **Não** pode desligar triggers, apagar constraints, `TRUNCATE` nem criar tabelas (`PrivilegiosTest`). |
 
 A garantia contra horário batido mora em constraints e triggers; o papel
 de runtime não consegue desligá-la.
@@ -74,7 +74,7 @@ aplicação e um build de front-end que este backend não usa).
 
 ### Linux/macOS (não testado)
 
-Com um PostgreSQL 18, como superusuário:
+Com um PostgreSQL 17 ou mais novo, como superusuário:
 
 ```sql
 CREATE ROLE cleison LOGIN PASSWORD '<senha gerada>';

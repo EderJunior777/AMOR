@@ -233,19 +233,36 @@ class OcupacaoAgendaTest extends TestCase
         ]));
     }
 
+    /**
+     * A aplicacao nem chega aos triggers: nao tem INSERT/UPDATE/DELETE em
+     * ocupacoes_agenda (so os triggers SECURITY DEFINER escrevem la). Que
+     * os triggers tambem barram o papel dono esta em EscritaDiretaNaAgendaTest.
+     */
     public function test_ocupacao_nao_pode_ser_mexida_por_fora(): void
     {
         $id = $this->marcar('10:00', '10:30');
 
-        $this->assertBancoRecusa('ocupacoes_protegidas',
-            fn () => DB::table('ocupacoes_agenda')->where('agendamento_id', $id)->delete());
-        $this->assertBancoRecusa('ocupacoes_do_agendamento',
+        $this->assertBancoRecusa('ocupacoes_agenda',
+            fn () => DB::table('ocupacoes_agenda')->where('agendamento_id', $id)->delete(), '42501');
+        $this->assertBancoRecusa('ocupacoes_agenda',
             fn () => DB::table('ocupacoes_agenda')->where('agendamento_id', $id)
-                ->update(['periodo' => DB::raw("tstzrange('2026-10-01 18:00-03', '2026-10-01 18:30-03', '[)')")]));
-        $this->assertBancoRecusa('ocupacoes_uma_origem',
+                ->update(['periodo' => DB::raw("tstzrange('2026-10-01 18:00-03', '2026-10-01 18:30-03', '[)')")]), '42501');
+        $this->assertBancoRecusa('ocupacoes_agenda',
             fn () => DB::table('ocupacoes_agenda')->insert([
                 'profissional_id' => $this->ze,
                 'periodo' => DB::raw("tstzrange('2026-10-01 18:00-03', '2026-10-01 18:30-03', '[)')"),
-            ]));
+            ]), '42501');
+    }
+
+    public function test_cancelar_bloqueio_libera_o_horario(): void
+    {
+        $bloqueio = $this->bloquear('14:00', '15:00');
+        $this->assertCount(1, $this->ocupacoes($this->ze));
+
+        DB::table('bloqueios_agenda')->where('id', $bloqueio)->update(['cancelado_em' => now()]);
+
+        $this->assertSame([], $this->ocupacoes($this->ze));
+        $this->marcar('14:00', '15:00');
+        $this->assertCount(1, $this->ocupacoes($this->ze));
     }
 }

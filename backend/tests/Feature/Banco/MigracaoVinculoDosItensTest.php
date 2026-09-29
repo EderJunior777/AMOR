@@ -68,8 +68,11 @@ class MigracaoVinculoDosItensTest extends TestCase
 
     public function test_banco_existente_com_dados_validos_e_invalidos(): void
     {
-        // 1. Schema como estava antes da correcao.
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--step' => 1, '--force' => true, '--database' => 'pgsql_migracao']));
+        // 1. Schema como estava antes da correcao (desfaz tambem as
+        //    migrations posteriores a ela, uma por vez).
+        while ($this->aplicada()) {
+            $this->assertSame(0, Artisan::call('migrate:rollback', ['--step' => 1, '--force' => true, '--database' => 'pgsql_migracao']));
+        }
         $this->assertFalse($this->aplicada());
         $this->assertFalse($this->travaDoVinculoExiste());
 

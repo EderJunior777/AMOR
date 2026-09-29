@@ -61,4 +61,31 @@ class EsquemaTest extends TestCase
 
         $this->assertTrue($existe);
     }
+
+    /**
+     * Toda FK precisa de um indice que comece pela sua primeira coluna.
+     * Sem ele, cada DELETE/UPDATE no pai (e cada conferencia RESTRICT)
+     * varre a tabela filha inteira. Parcial "WHERE col IS NOT NULL" serve:
+     * a busca da FK e por igualdade, o que ja implica NOT NULL.
+     */
+    public function test_toda_chave_estrangeira_tem_indice(): void
+    {
+        $semIndice = DB::select(<<<'SQL'
+            SELECT c.conrelid::regclass::text || '(' || a.attname || ')' AS fk
+              FROM pg_constraint c
+              JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+             WHERE c.contype = 'f' AND c.connamespace = 'public'::regnamespace
+               AND NOT EXISTS (SELECT 1 FROM pg_index i
+                                WHERE i.indrelid = c.conrelid AND i.indkey[0] = c.conkey[1])
+             ORDER BY 1
+        SQL);
+
+        $this->assertSame([], array_column($semIndice, 'fk'));
+    }
+
+    /** O esquema depende da aritmetica de intervalos infinitos do PG 17+. */
+    public function test_postgresql_e_17_ou_mais(): void
+    {
+        $this->assertGreaterThanOrEqual(170000, (int) DB::scalar('SHOW server_version_num'));
+    }
 }

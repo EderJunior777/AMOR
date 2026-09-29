@@ -211,10 +211,13 @@ class AgendamentoIntegridadeTest extends TestCase
         $id = $this->novoAgendamento('10:00', '10:30');
         $evento = DB::table('agendamento_eventos')->where('agendamento_id', $id)->value('id');
 
-        $this->assertBancoRecusa('agendamento_eventos_somente_insercao',
-            fn () => DB::table('agendamento_eventos')->where('id', $evento)->update(['estado_novo' => 'concluido']));
-        $this->assertBancoRecusa('agendamento_eventos_somente_insercao',
-            fn () => DB::table('agendamento_eventos')->where('id', $evento)->delete());
+        // A aplicacao nao tem UPDATE/DELETE no historico; o trigger
+        // agendamento_eventos_somente_insercao barra ate o papel dono
+        // (EscritaDiretaNaAgendaTest).
+        $this->assertBancoRecusa('agendamento_eventos',
+            fn () => DB::table('agendamento_eventos')->where('id', $evento)->update(['estado_novo' => 'concluido']), '42501');
+        $this->assertBancoRecusa('agendamento_eventos',
+            fn () => DB::table('agendamento_eventos')->where('id', $evento)->delete(), '42501');
     }
 
     public function test_operador_precisa_ser_identificado_no_historico(): void
