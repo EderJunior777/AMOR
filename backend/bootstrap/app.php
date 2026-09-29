@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ErroDeBanco;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,7 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
-        );
+        $pedeJson = fn (Request $request) => $request->is('api/*') || $request->expectsJson();
+
+        $exceptions->shouldRenderJsonWhen($pedeJson);
+
+        // Erros do PostgreSQL (QueryException e a PDOException crua do COMMIT):
+        // log sem SQL nem bindings (PII) no lugar do log padrao, e resposta por SQLSTATE.
+        $exceptions->report(fn (PDOException $e) => ErroDeBanco::registrar($e))->stop();
+        $exceptions->render(fn (PDOException $e, Request $request) => $pedeJson($request) ? ErroDeBanco::resposta($e) : null);
     })->create();

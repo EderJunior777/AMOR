@@ -102,6 +102,8 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             // verify-full exige o certificado raiz da CA do banco.
             'sslrootcert' => env('DB_SSLROOTCERT'),
+            // A mensagem da QueryException nao interpola os bindings (PII).
+            'mask_bindings_in_exception_messages' => true,
         ],
 
         // Mesmo banco, papel DONO do schema. So para migrations:
@@ -124,6 +126,8 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             // verify-full exige o certificado raiz da CA do banco.
             'sslrootcert' => env('DB_SSLROOTCERT'),
+            // A mensagem da QueryException nao interpola os bindings (PII).
+            'mask_bindings_in_exception_messages' => true,
         ],
 
         'sqlsrv' => [
