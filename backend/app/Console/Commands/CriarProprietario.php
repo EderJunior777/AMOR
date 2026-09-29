@@ -94,13 +94,15 @@ class CriarProprietario extends Command
                 return 'email-em-uso';
             }
 
-            return User::query()->create([
+            $usuario = new User([
                 'name' => $nome,
                 'email' => $email,
                 'password' => $senha, // cast "hashed": grava so o hash
-                'papel' => PapelUsuario::Proprietario,
-                'ativo' => true,
             ]);
+            // Papel e ativo nao sao atribuiveis em massa.
+            $usuario->forceFill(['papel' => PapelUsuario::Proprietario, 'ativo' => true])->save();
+
+            return $usuario;
         });
 
         if ($resultado === 'ja-existe') {

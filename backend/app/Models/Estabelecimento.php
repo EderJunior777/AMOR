@@ -19,8 +19,9 @@ class Estabelecimento extends Model
     protected $fillable = [
         'nome', 'fuso_horario', 'whatsapp', 'endereco', 'grade_minutos',
         'antecedencia_minima_minutos', 'horizonte_dias', 'domicilio_ativo',
-        'dados_demonstracao',
     ];
+    // dados_demonstracao fica fora: distingue o seed de exemplo do
+    // estabelecimento real e so e marcado explicitamente (forceFill).
 
     protected $attributes = ['id' => self::ID];
 

@@ -57,7 +57,7 @@ class DemonstracaoSeederTest extends TestCase
 
     public function test_nao_sobrescreve_estabelecimento_real(): void
     {
-        Estabelecimento::query()->create(['nome' => 'Barbearia Real', 'dados_demonstracao' => false]);
+        Estabelecimento::query()->forceCreate(['nome' => 'Barbearia Real', 'dados_demonstracao' => false]);
 
         try {
             $this->seed(DemonstracaoSeeder::class);

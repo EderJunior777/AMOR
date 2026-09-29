@@ -13,6 +13,7 @@ use Illuminate\Database\Console\Migrations\RefreshCommand;
 use Illuminate\Database\Console\Migrations\ResetCommand;
 use Illuminate\Database\Console\Migrations\RollbackCommand;
 use Illuminate\Database\Console\WipeCommand;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Support\Env;
 use Illuminate\Support\ServiceProvider;
@@ -39,6 +40,10 @@ class AppServiceProvider extends ServiceProvider
             $this->app['config'],
             Env::get('DB_MIGRACAO_PASSWORD'),
         );
+
+        // Fora de producao: lazy loading, atributo descartado em silencio
+        // (mass assignment) e atributo ausente viram excecao.
+        Model::shouldBeStrict(! $this->app->isProduction());
 
         // Proxies confiaveis (TRUSTED_PROXIES). Sem lista, nenhum: o IP e o
         // esquema vem da conexao, e X-Forwarded-* de terceiros e ignorado.

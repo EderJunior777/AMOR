@@ -20,7 +20,14 @@ class Agendamento extends Model
 {
     protected $table = 'agendamentos';
 
-    protected $guarded = ['id', 'codigo_publico', 'periodo_ocupado', 'created_at', 'updated_at'];
+    /**
+     * So o texto livre do cliente entra em massa. Estado, cliente, autoria,
+     * idempotencia, cancelamento e codigo publico mudam por metodos de
+     * dominio; horarios, profissional, taxa e snapshot do endereco sao
+     * calculados e validados no servidor (docs/ESPEC-RESERVA.md) e gravados
+     * com forceFill, nunca copiados de uma requisicao.
+     */
+    protected $fillable = ['observacao_cliente'];
 
     protected function casts(): array
     {

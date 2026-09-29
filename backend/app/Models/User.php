@@ -14,8 +14,11 @@ use Illuminate\Notifications\Notifiable;
 /**
  * Identidade administrativa (proprietario, barbeiro, recepcao).
  * Clientes da barbearia nao sao Users.
+ *
+ * `papel` e `ativo` definem poder: nunca por atribuicao em massa. Quem os
+ * define o faz explicitamente (forceFill), como CriarProprietario.
  */
-#[Fillable(['name', 'email', 'password', 'papel', 'ativo'])]
+#[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {

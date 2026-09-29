@@ -62,7 +62,8 @@ class DemonstracaoSeeder extends Seeder
                 );
             }
 
-            Estabelecimento::query()->updateOrCreate(['id' => Estabelecimento::ID], [
+            // forceFill: dados_demonstracao nao e atribuivel em massa.
+            ($existente ?? new Estabelecimento)->forceFill([
                 'nome' => 'Barbearia do Ze (demonstracao)',
                 'fuso_horario' => 'America/Sao_Paulo',
                 'whatsapp' => '+5511987654321',
@@ -72,7 +73,7 @@ class DemonstracaoSeeder extends Seeder
                 'horizonte_dias' => 30,
                 'domicilio_ativo' => true,
                 'dados_demonstracao' => true,
-            ]);
+            ])->save();
 
             $servicos = collect(self::SERVICOS)->values()->map(fn (array $s, int $i) => Servico::query()->updateOrCreate(
                 ['codigo' => $s['codigo']],
