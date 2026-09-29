@@ -178,6 +178,50 @@ paradas:
    btree; instala a extensão `amcheck`, remova depois). Conexão bem-sucedida
    **não** é auditoria de integridade.
 
+## Empacotar para revisão ou distribuição
+
+**Nunca zipe a pasta.** Um pacote anterior feito assim levou o `.env` (com
+`APP_KEY` e as senhas dos dois papéis do banco) e um log com caminhos locais.
+Use o script, que parte do git (`git archive`), ou seja, só do que está
+commitado:
+
+```bash
+scripts/empacotar.sh            # HEAD (recusa se backend/, docs/ ou scripts/ tiverem mudança não commitada)
+scripts/empacotar.sh <commit>   # outro commit ou tag
+```
+
+Saída em `entregas/` (ignorada pelo git): `cleison-<commit>-<data>.zip` e o
+`.sha256`. Antes de gerar, o script confere os nomes (`.env*`, logs,
+`vendor/`, caches, `.ferramentas/`) e o conteúdo (`APP_KEY=base64:`, senhas
+preenchidas, caminhos `C:/Users/...`). Se achar algo, ele recusa.
+
+## Ações humanas pendentes
+
+Coisas que o código não resolve e que dependem do responsável pelo projeto:
+
+1. **Rotacionar o `APP_KEY`.** Ele vazou num pacote anterior. Gere outro com
+   `php artisan key:generate` em cada ambiente. As sessões cifradas atuais
+   caem. Se já existir dado cifrado com a chave antiga, ponha a antiga em
+   `APP_PREVIOUS_KEYS` durante a transição.
+2. **Trocar a senha do papel `cleison_app`**, que também vazou:
+   `ALTER ROLE cleison_app PASSWORD '<nova>'` como superusuário. Depois,
+   atualize `DB_PASSWORD`.
+3. **Trocar a senha do papel `cleison`** (dono do schema), que também vazou:
+   `ALTER ROLE cleison PASSWORD '<nova>'`. Depois, atualize o segredo de
+   migração. No cluster local descartável, basta recriar com
+   `postgres-local.ps1 criar`.
+4. **Decidir o destino da raiz do repositório.** A cópia de trabalho da raiz
+   é o ZIP original e diverge do commit `0ddedb8`. Esta missão não mexe
+   nela. Decida se ela volta ao `HEAD` ou fica como referência do ZIP
+   (`docs/ARQUITETURA.md` §1).
+
+   | Arquivo | Divergência em relação ao `HEAD` |
+   |---|---|
+   | `assets/admin.js` | Remove `linkZap` (prefixo 55 no wa.me), que o `0ddedb8` adicionou |
+   | `netlify/functions/agenda.mjs` | Volta a chave de blob com `:`, desfazendo a correção para Windows, e remove `horaDaChave` |
+   | `testes/servidor-local.mjs` | Desfaz um trecho da correção de ambiente Windows |
+   | Outros 17 da raiz (`index.html`, `README.md`, `sw.js`, `assets/*`, `package*.json`...) | Só fim de linha (LF/CRLF), sem mudança de conteúdo |
+
 ## Mapa
 
 | Caminho | Conteúdo |

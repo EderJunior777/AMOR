@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Gera o pacote de distribuicao/revisao A PARTIR DO GIT (git archive).
+#
+# Nunca zipe a pasta do projeto: um pacote anterior feito assim levou o
+# backend/.env (APP_KEY e as senhas dos dois papeis do banco) e um log com
+# caminhos locais. git archive so inclui o que esta COMMITADO, entao .env,
+# logs, vendor/, caches e .ferramentas/ ficam de fora por construcao.
+#
+# Uso (Git Bash no Windows, ou qualquer bash):
+#   scripts/empacotar.sh            # empacota o HEAD
+#   scripts/empacotar.sh <commit>   # empacota outro commit/tag
+#
+# Saida: entregas/cleison-<commit>-<data>.zip + .sha256 (entregas/ e ignorada).
+set -euo pipefail
+
+raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$raiz"
+
+rev="${1:-HEAD}"
+caminhos=(backend docs scripts)
+
+git rev-parse --verify --quiet "${rev}^{commit}" >/dev/null \
+  || { echo "ERRO: '${rev}' nao e um commit." >&2; exit 1; }
+
+# Empacotando o HEAD, mudanca nao commitada ficaria de fora sem ninguem
+# perceber. Recusa em vez de gerar um pacote diferente do que se ve.
+if [[ "$rev" == "HEAD" ]] && [[ -n "$(git status --porcelain -- "${caminhos[@]}")" ]]; then
+  echo "ERRO: ha mudancas nao commitadas em ${caminhos[*]}:" >&2
+  git status --short -- "${caminhos[@]}" >&2
+  echo "Commite (ou descarte) antes de empacotar." >&2
+  exit 1
+fi
+
+# Conferencia 1: nomes que nunca podem ir no pacote.
+proibidos='(^|/)\.env($|\.testing$|\.production$|\.local$)|\.log$|(^|/)vendor/|(^|/)node_modules/|\.phpunit\.result\.cache$|storage/framework/views/[^/]+\.php$|bootstrap/cache/[^/]+\.php$|(^|/)\.ferramentas/|pg-credenciais'
+if git ls-tree -r --name-only "$rev" -- "${caminhos[@]}" | grep -E "$proibidos"; then
+  echo "ERRO: os arquivos acima estao versionados e nao podem ser distribuidos." >&2
+  echo "Tire do git com: git rm --cached <arquivo> (e rotacione o que vazou)." >&2
+  exit 1
+fi
+
+# Conferencia 2: conteudo com cara de segredo (so placeholders sao aceitos).
+segredos='APP_KEY=base64:|^[[:space:]]*(DB_PASSWORD|DB_MIGRACAO_PASSWORD)=[^[:space:]#]+|base64:[A-Za-z0-9+/]{20,}|[A-Za-z]:[/\\]Users[/\\]'
+if git grep -nIE "$segredos" "$rev" -- "${caminhos[@]}"; then
+  echo "ERRO: possivel segredo ou caminho local nas linhas acima. Pacote NAO gerado." >&2
+  exit 1
+fi
+
+curto="$(git rev-parse --short "$rev")"
+mkdir -p entregas
+saida="entregas/cleison-${curto}-$(date +%Y-%m-%d).zip"
+
+git archive --format=zip --prefix=cleison/ -o "$saida" "$rev" -- "${caminhos[@]}"
+
+(cd entregas && sha256sum "$(basename "$saida")" > "$(basename "$saida").sha256")
+
+echo "Pacote: $saida"
+echo "SHA-256: $(cut -d' ' -f1 "$saida.sha256")"
+echo "Conteudo: ${caminhos[*]} do commit ${curto} (sem .env, logs, vendor/ e caches)."
