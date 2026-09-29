@@ -62,6 +62,9 @@ class TravaDeProducaoTest extends TestCase
             'APP_KEY nula' => [['app.key' => null], 'APP_KEY'],
             'proxy curinga' => [['app.proxies_confiaveis' => ['*']], 'TRUSTED_PROXIES'],
             'proxy curinga duplo' => [['app.proxies_confiaveis' => ['10.0.0.1', '**']], 'TRUSTED_PROXIES'],
+            'proxy /0 ipv4' => [['app.proxies_confiaveis' => ['0.0.0.0/0']], 'TRUSTED_PROXIES'],
+            'proxy /0 ipv6' => [['app.proxies_confiaveis' => ['10.0.0.1', '::/0']], 'TRUSTED_PROXIES'],
+            'proxy metade da internet' => [['app.proxies_confiaveis' => ['0.0.0.0/1', '128.0.0.0/1']], 'TRUSTED_PROXIES'],
         ];
     }
 

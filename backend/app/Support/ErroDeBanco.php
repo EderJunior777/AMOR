@@ -87,13 +87,18 @@ final class ErroDeBanco
         return null;
     }
 
-    /** Nome da constraint ou da regra de trigger ("[nome] ..."), se houver. */
+    /**
+     * Nome da constraint ou da regra de trigger ("ERROR:  [nome] ..."), se houver.
+     * So a PRIMEIRA linha: o DETAIL traz valores da linha (dado do usuario),
+     * e um "[abc]" digitado num nome nao pode virar nome de regra no log.
+     */
     public static function constraint(PDOException $e): ?string
     {
-        $texto = (string) ($e->errorInfo[2] ?? $e->getMessage());
+        $texto = strtok((string) ($e->errorInfo[2] ?? $e->getMessage()), '
+');
 
-        if (preg_match('/\[([a-z][a-z0-9_]*)\]/', $texto, $m)
-            || preg_match('/constraint "([a-z][a-z0-9_]*)"/', $texto, $m)) {
+        if (preg_match('/constraint "([a-z][a-z0-9_]*)"/', (string) $texto, $m)
+            || preg_match('/ERROR:\s+\[([a-z][a-z0-9_]*)\]/', (string) $texto, $m)) {
             return $m[1];
         }
 

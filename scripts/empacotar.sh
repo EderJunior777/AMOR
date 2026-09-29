@@ -32,7 +32,8 @@ if [[ "$rev" == "HEAD" ]] && [[ -n "$(git status --porcelain -- "${caminhos[@]}"
 fi
 
 # Conferencia 1: nomes que nunca podem ir no pacote.
-proibidos='(^|/)\.env($|\.testing$|\.production$|\.local$)|\.log$|(^|/)vendor/|(^|/)node_modules/|\.phpunit\.result\.cache$|storage/framework/views/[^/]+\.php$|bootstrap/cache/[^/]+\.php$|(^|/)\.ferramentas/|pg-credenciais'
+# .env e qualquer .env.* (staging, dev...), menos os dois exemplos (conferidos a parte).
+proibidos='(^|/)\.env($|\.(testing|production|local|staging|dev|development|prod)$)|\.log$|(^|/)vendor/|(^|/)node_modules/|\.phpunit\.result\.cache$|storage/framework/views/[^/]+\.php$|bootstrap/cache/[^/]+\.php$|(^|/)\.ferramentas/|pg-credenciais'
 if git ls-tree -r --name-only "$rev" -- "${caminhos[@]}" | grep -E "$proibidos"; then
   echo "ERRO: os arquivos acima estao versionados e nao podem ser distribuidos." >&2
   echo "Tire do git com: git rm --cached <arquivo> (e rotacione o que vazou)." >&2
@@ -40,8 +41,9 @@ if git ls-tree -r --name-only "$rev" -- "${caminhos[@]}" | grep -E "$proibidos";
 fi
 
 # Conferencia 2: conteudo com cara de segredo (so placeholders sao aceitos).
-segredos='APP_KEY=base64:|^[[:space:]]*(DB_PASSWORD|DB_MIGRACAO_PASSWORD)=[^[:space:]#]+|base64:[A-Za-z0-9+/]{20,}|[A-Za-z]:[/\\]Users[/\\]'
-if git grep -nIE "$segredos" "$rev" -- "${caminhos[@]}"; then
+segredos='APP_KEY=base64:|^[[:space:]]*(DB_PASSWORD|DB_MIGRACAO_PASSWORD)=[^[:space:]#]+|^[[:space:]]*DB(_MIGRACAO)?_URL=[a-z]+://[^:@[:space:]]+:[^@[:space:]]+@|base64:[A-Za-z0-9+/]{20,}|[A-Za-z]:[/\\]Users[/\\]'
+# O proprio script contem os padroes; fica fora so desta conferencia.
+if git grep -nIE "$segredos" "$rev" -- "${caminhos[@]}" ':(exclude)scripts/empacotar.sh'; then
   echo "ERRO: possivel segredo ou caminho local nas linhas acima. Pacote NAO gerado." >&2
   exit 1
 fi

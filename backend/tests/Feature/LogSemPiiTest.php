@@ -111,6 +111,20 @@ class LogSemPiiTest extends TestCase
         }
     }
 
+    /** Na conexao do dono (pipeline de migracao) a instrucao do RAISE continua visivel. */
+    public function test_erro_na_conexao_do_dono_mostra_a_mensagem_para_quem_migra(): void
+    {
+        $pdo = new PDOException('SQLSTATE[23514]: Check violation: 7 ERROR:  [migracao_ocupacoes_fantasma] 2 ocupacao(oes) apontam para agendamento cancelado. Revise antes de migrar.');
+        $pdo->errorInfo = ['23514', 7, 'ERROR:  [migracao_ocupacoes_fantasma] 2 ocupacao(oes)'];
+        $erro = new QueryException('pgsql_migracao', 'DO $$ ... $$', [], $pdo);
+        $kernel = $this->app->make(ConsoleKernel::class);
+        $kernel->registerCommand(new ClosureCommand('teste:erro-migracao', fn () => throw $erro));
+
+        $kernel->handle(new ArrayInput(['command' => 'teste:erro-migracao']), $saida = new BufferedOutput);
+
+        $this->assertStringContainsString('Revise antes de migrar', $saida->fetch());
+    }
+
     /** Processo de verdade, fora do PHPUnit: em APP_ENV=local o Collision esta ativo e troca o handler. */
     public function test_processo_artisan_real_com_banco_fora_do_ar(): void
     {

@@ -46,7 +46,8 @@ final class TransacaoAuditada
 
         return DB::transaction(function () use ($ator, $usuario, $fn) {
             if ($usuario !== null
-                && ! User::query()->whereKey($usuario->getKey())->where('ativo', true)->exists()) {
+                // FOR SHARE: ninguem desativa o operador ate o fim da transacao.
+                && User::query()->whereKey($usuario->getKey())->where('ativo', true)->sharedLock()->first(['id']) === null) {
                 throw new AutoriaInvalida('Ator operador exige usuario ativo.');
             }
 

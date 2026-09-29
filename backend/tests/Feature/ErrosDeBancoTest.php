@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\ErroDeBanco;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
@@ -131,5 +132,24 @@ class ErrosDeBancoTest extends TestCase
         foreach (['pgsql', 'pgsql_migracao'] as $conexao) {
             $this->assertTrue(config("database.connections.{$conexao}.mask_bindings_in_exception_messages"), $conexao);
         }
+    }
+
+    /** O DETAIL traz a linha (dado do usuario): um "[abc]" ali nao vira nome de regra. */
+    public function test_nome_da_regra_so_vem_da_primeira_linha(): void
+    {
+        $check = $this->pdo('23514', 'ERROR:  new row for relation "clientes" violates check constraint "clientes_nome"
+DETAIL:  Failing row contains (7, [abc], +5511999990000).');
+        $semRegra = $this->pdo('23514', 'ERROR:  new row for relation "x" violates check constraint "regra_nova"
+DETAIL:  Failing row contains ([segredo_do_cliente]).');
+        $trigger = $this->pdo('23514', 'ERROR:  [agendamentos_transicao_estado] Transicao invalida
+DETAIL:  [outra_coisa]');
+        $soDetail = $this->pdo('23514', 'ERROR:  algo falhou
+DETAIL:  Failing row contains ([segredo_do_cliente]).');
+
+        $this->assertSame('clientes_nome', ErroDeBanco::constraint($check));
+        $this->assertSame('regra_nova', ErroDeBanco::constraint($semRegra));
+        $this->assertSame('agendamentos_transicao_estado', ErroDeBanco::constraint($trigger));
+        $this->assertNull(ErroDeBanco::constraint($soDetail));
+        $this->assertSame('Informe o nome do cliente.', ErroDeBanco::classificar($check)[2]);
     }
 }

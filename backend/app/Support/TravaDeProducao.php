@@ -80,11 +80,26 @@ final class TravaDeProducao
         }
 
         $proxies = (array) $config->get('app.proxies_confiaveis', []);
-        if (array_intersect($proxies, ['*', '**']) !== []) {
-            $problemas[] = 'TRUSTED_PROXIES com curinga (liste os IPs/CIDR do proxy)';
+        if (array_intersect($proxies, ['*', '**']) !== [] || array_filter($proxies, self::faixaAmplaDemais(...)) !== []) {
+            $problemas[] = 'TRUSTED_PROXIES com curinga ou faixa ampla demais (liste os IPs/CIDR do proxy)';
         }
 
         return $problemas;
+    }
+
+    /**
+     * CIDR que equivale a confiar em (quase) todo mundo: /0 em qualquer
+     * familia (0.0.0.0/0, ::/0) ou IPv4 mais largo que /8 (0.0.0.0/1 +
+     * 128.0.0.0/1 cobre a internet inteira).
+     */
+    private static function faixaAmplaDemais(mixed $proxy): bool
+    {
+        if (! is_string($proxy) || ! preg_match('#^(.+)/(\d{1,3})$#', trim($proxy), $m)) {
+            return false;
+        }
+        $prefixo = (int) $m[2];
+
+        return $prefixo === 0 || (filter_var($m[1], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false && $prefixo < 8);
     }
 
     /** Configuracao efetiva da conexao, com a `url` aplicada. */

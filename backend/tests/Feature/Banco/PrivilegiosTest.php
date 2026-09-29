@@ -25,6 +25,10 @@ class PrivilegiosTest extends TestCase
 
         $this->assertNotSame($dono, $usuario, 'A conexao da aplicacao usa o papel dono das tabelas.');
         $this->assertFalse((bool) DB::scalar('SELECT rolsuper FROM pg_roles WHERE rolname = current_user'));
+        // Nem membro do dono: SET ROLE ou heranca dariam current_user = dono e
+        // abririam as excecoes de imutabilidade (anonimizacao). Em PostgreSQL
+        // gerenciado a criacao de papeis as vezes concede isso sozinha.
+        $this->assertFalse((bool) DB::scalar("SELECT pg_has_role(current_user, ?, 'MEMBER')", [$dono]), 'O papel da aplicacao e membro do dono.');
     }
 
     public function test_aplicacao_nao_consegue_desligar_as_garantias(): void

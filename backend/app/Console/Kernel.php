@@ -3,6 +3,7 @@
 namespace App\Console;
 
 use App\Support\ErroDeBanco;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Console\Kernel as KernelDoFramework;
 use PDOException;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
@@ -26,7 +27,11 @@ class Kernel extends KernelDoFramework
 
     protected function renderException($output, Throwable $e)
     {
-        if (! $e instanceof PDOException) {
+        // Na conexao do DONO (so pipeline: composer migrar) a mensagem crua fica:
+        // os RAISE das migrations trazem a instrucao de remediacao, e quem roda
+        // ali ja tem acesso total ao banco. Bindings seguem mascarados.
+        if (! $e instanceof PDOException
+            || ($e instanceof QueryException && $e->getConnectionName() === 'pgsql_migracao')) {
             parent::renderException($output, $e);
 
             return;
