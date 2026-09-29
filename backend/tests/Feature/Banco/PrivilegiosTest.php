@@ -87,6 +87,26 @@ class PrivilegiosTest extends TestCase
         }
     }
 
+    /**
+     * Sem INSERT na tabela, a sequencia so serviria para queimar ids com
+     * nextval(). Quem gera os ids e o dono (triggers SECURITY DEFINER).
+     */
+    public function test_aplicacao_nao_mexe_nas_sequencias_de_ocupacoes_e_historico(): void
+    {
+        $app = config('database.connections.pgsql.username');
+
+        foreach (['ocupacoes_agenda', 'agendamento_eventos'] as $tabela) {
+            $sequencia = DB::scalar('SELECT pg_get_serial_sequence(?, ?)', ["public.{$tabela}", 'id']);
+            $this->assertNotNull($sequencia);
+            foreach (['USAGE', 'UPDATE', 'SELECT'] as $privilegio) {
+                $this->assertFalse(
+                    (bool) DB::scalar('SELECT has_sequence_privilege(?, ?, ?)', [$app, $sequencia, $privilegio]),
+                    "{$app} ainda tem {$privilegio} em {$sequencia}"
+                );
+            }
+        }
+    }
+
     public function test_aplicacao_nao_forja_ocupacao_nem_historico(): void
     {
         $id = $this->novoAgendamento('10:00', '10:30');
