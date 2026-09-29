@@ -55,6 +55,13 @@ final class ErroDeBanco
         'expedientes_sem_sobreposicao' => 'Esta janela de expediente se sobrepoe a outra.',
         'excecoes_sem_sobreposicao' => 'Esta janela de excecao se sobrepoe a outra.',
         'estabelecimento_fuso_valido' => 'Fuso horario desconhecido.',
+        'anonimizacao_exige_proprietario' => 'So um proprietario ativo pode anonimizar clientes.',
+        'anonimizacao_cliente_inexistente' => 'Cliente nao encontrado.',
+        'clientes_anonimizacao_com_ativo' => 'O cliente tem agendamento em aberto; cancele ou conclua antes de anonimizar.',
+        'clientes_anonimizado_fechado' => 'Este cliente foi anonimizado e nao recebe novos dados.',
+        'clientes_anonimizado_imutavel' => 'Cliente anonimizado nao pode ser alterado.',
+        'anonimizacoes_protocolo' => 'Protocolo invalido (letras, numeros e . _ / -, ate 40 caracteres).',
+        'anonimizacoes_protocolo_do_pedido' => 'Informe o protocolo do pedido.',
     ];
 
     private const GENERICAS = [

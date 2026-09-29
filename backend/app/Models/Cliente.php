@@ -15,6 +15,12 @@ class Cliente extends Model
 
     protected $fillable = ['nome', 'telefone', 'observacoes'];
 
+    /** anonimizado_em so e gravado por cleison_anonimizar_cliente (LGPD). */
+    protected function casts(): array
+    {
+        return ['anonimizado_em' => 'immutable_datetime'];
+    }
+
     public function agendamentos(): HasMany
     {
         return $this->hasMany(Agendamento::class);

@@ -1,7 +1,11 @@
 # LGPD: anonimização de clientes (Fase 8)
 
-> **Status: aprovado (D1 a D8, com os ajustes de 3.0).** Implementação:
-> migration `2026_09_29_000300_anonimizacao_de_clientes`. Resolve a decisão
+> **Status: aprovado (D1 a D8, com os ajustes de 3.0) e implementado.**
+> Migration `2026_09_29_000300_anonimizacao_de_clientes`; comandos
+> `cleison:anonimizar-cliente` e `cleison:anonimizar-inativos` (este inerte
+> até D5); testes `AnonimizacaoTest`, `AnonimizacaoPeloDonoTest`,
+> `AnonimizarClienteComandoTest` e `AnonimizarInativosTest`. Decisão ainda
+> aberta: D5. Resolve a decisão
 > pendente 16 (`DECISOES-PENDENTES.md`) e a linha "Anonimização/LGPD:
 > decisão pendente" de `MODELO-DE-DADOS.md`. Prazos e bases legais precisam
 > de validação jurídica; este documento cobre o lado técnico.
@@ -130,8 +134,8 @@ até alguém decidir se ela é texto livre.
 | `ocorrido_em` | timestamptz | `now()` |
 | `origem` | varchar | `'pedido_titular'` ou `'retencao'` |
 | `usuario_id` | bigint, FK `users`, `NOT NULL` | o proprietário em nome de quem a anonimização rodou (em `retencao`, o responsável configurado) |
-| `protocolo` | varchar(40) | obrigatório em `pedido_titular`; CHECK `^[A-Za-z0-9._/-]{1,40}$`, para que não caiba nome, telefone nem frase |
-| `clientes_afetados`, `enderecos_afetados`, `agendamentos_afetados`, `eventos_afetados` | integer ≥ 0 | contagens do passo 3 |
+| `protocolo` | text | obrigatório em `pedido_titular`; CHECK `^[A-Za-z0-9._/-]{1,40}$`, para que não caiba nome, telefone nem frase |
+| `enderecos_afetados`, `agendamentos_afetados`, `eventos_afetados` | integer ≥ 0 | contagens do passo 3 (o cliente é sempre 1) |
 
 Não há coluna de texto livre, e nada do que foi apagado fica guardado. A
 tabela é só inserção, com o mesmo padrão já usado em `agendamento_eventos`:

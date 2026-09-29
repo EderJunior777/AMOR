@@ -188,7 +188,7 @@ são mantidas por trigger. 🧪 `ocupacoes_sem_sobreposicao` (exclusão, SQLSTAT
 | Tabela | Pode apagar? |
 |---|---|
 | agendamentos, itens, eventos | **Não** (FK RESTRICT + eventos só inserção). Cancela-se. |
-| clientes, enderecos com uso | Não (RESTRICT). Anonimização/LGPD: decisão pendente. |
+| clientes, enderecos com uso | Não (RESTRICT). Pedido de exclusão = anonimização (`cleison_anonimizar_cliente`, `docs/LGPD-ANONIMIZACAO.md`). |
 | servicos, regioes, profissionais com uso | Não (RESTRICT). Desativa-se. |
 | profissional_servico, expedientes, exceções | Sim (configuração, sem histórico). |
 | bloqueios_agenda | Tecnicamente sim (a ocupação vai junto), mas o fluxo previsto é cancelar. |

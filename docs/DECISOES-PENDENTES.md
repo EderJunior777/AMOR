@@ -37,8 +37,11 @@ documentado.
     histórico online.
 15. **Perfis**: haverá recepção? Barbeiro vê o telefone/endereço só dos
     próprios clientes?
-16. **Retenção e LGPD**: por quanto tempo guardar clientes inativos; pedido
-    de exclusão = anonimizar (o histórico financeiro precisa permanecer)?
+16. **Retenção e LGPD**: pedido de exclusão = anonimizar, mantendo o
+    histórico (decidido e implementado, `docs/LGPD-ANONIMIZACAO.md`). **Ainda
+    em aberto (D5):** por quanto tempo guardar clientes inativos. Decisão do
+    responsável + jurídico; o parâmetro `CLEISON_RETENCAO_CLIENTE_INATIVO_MESES`
+    não tem valor padrão e, sem ele, a retenção automática não roda.
 17. Método de **MFA**: TOTP (app autenticador) é o proposto.
 
 ## Recebimentos e fechamento (etapas 4–5)
