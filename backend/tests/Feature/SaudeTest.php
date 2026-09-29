@@ -79,4 +79,12 @@ class SaudeTest extends TestCase
     {
         $this->get('/up')->assertCookieMissing(config('session.cookie'));
     }
+
+    public function test_raiz_responde_sem_anunciar_nada(): void
+    {
+        $resposta = $this->get('/');
+
+        $resposta->assertNoContent();
+        $this->assertSame('', $resposta->getContent());
+    }
 }
