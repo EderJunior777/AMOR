@@ -28,9 +28,16 @@ final class TravaDeProducao
     /** Comandos artisan que atendem requisicoes HTTP. */
     public const COMANDOS_HTTP = ['serve', 'octane:start', 'octane:frankenphp', 'octane:roadrunner', 'octane:swoole'];
 
-    public static function servindoHttp(bool $console, ?string $comando): bool
+    /**
+     * @param  list<string>  $argumentos  argv sem o script (php artisan ...)
+     *
+     * Qualquer argumento igual a um comando HTTP conta, nao so o primeiro:
+     * "artisan --env=production octane:start" ou "-v serve" tambem servem
+     * HTTP (argv[1] seria a opcao, e a trava ficaria desligada).
+     */
+    public static function servindoHttp(bool $console, array $argumentos): bool
     {
-        return ! $console || in_array($comando, self::COMANDOS_HTTP, true);
+        return ! $console || array_intersect($argumentos, self::COMANDOS_HTTP) !== [];
     }
 
     /**

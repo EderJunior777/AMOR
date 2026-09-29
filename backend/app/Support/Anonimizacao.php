@@ -32,10 +32,7 @@ final class Anonimizacao
         }
 
         $agendamentos = DB::table('agendamentos')->where('cliente_id', $clienteId);
-        $emAberto = array_map(
-            fn (EstadoAgendamento $e) => $e->value,
-            array_filter(EstadoAgendamento::cases(), fn (EstadoAgendamento $e) => ! $e->encerrado()),
-        );
+        $emAberto = EstadoAgendamento::emAberto();
 
         return [
             'anonimizado' => $cliente->anonimizado_em !== null,

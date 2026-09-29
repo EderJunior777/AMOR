@@ -82,10 +82,7 @@ class AnonimizarInativos extends Command
     /** Sem agendamento em aberto nem agendamento desde $limite, e cadastrado antes dele. */
     private function elegiveis(CarbonInterface $limite): Builder
     {
-        $emAberto = array_map(
-            fn (EstadoAgendamento $e) => $e->value,
-            array_filter(EstadoAgendamento::cases(), fn (EstadoAgendamento $e) => ! $e->encerrado()),
-        );
+        $emAberto = EstadoAgendamento::emAberto();
 
         return DB::table('clientes as c')
             ->whereNull('c.anonimizado_em')

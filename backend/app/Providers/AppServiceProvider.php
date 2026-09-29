@@ -36,7 +36,7 @@ class AppServiceProvider extends ServiceProvider
     {
         TravaDeProducao::verificar(
             (string) $this->app->environment(),
-            TravaDeProducao::servindoHttp($this->app->runningInConsole(), $_SERVER['argv'][1] ?? null),
+            TravaDeProducao::servindoHttp($this->app->runningInConsole(), array_slice((array) ($_SERVER['argv'] ?? []), 1)),
             $this->app['config'],
             Env::get('DB_MIGRACAO_PASSWORD'),
         );

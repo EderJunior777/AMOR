@@ -1,7 +1,9 @@
 # LGPD: anonimização de clientes (Fase 8)
 
 > **Status: aprovado (D1 a D8, com os ajustes de 3.0) e implementado.**
-> Migration `2026_09_29_000300_anonimizacao_de_clientes`; comandos
+> Migrations `2026_09_29_000300_anonimizacao_de_clientes` e
+> `2026_09_29_000400_travar_cliente_anonimizado` (corrida com agendamento
+> novo, achada na revisão final); comandos
 > `cleison:anonimizar-cliente` e `cleison:anonimizar-inativos` (este inerte
 > até D5); testes `AnonimizacaoTest`, `AnonimizacaoPeloDonoTest`,
 > `AnonimizarClienteComandoTest` e `AnonimizarInativosTest`. Decisão ainda

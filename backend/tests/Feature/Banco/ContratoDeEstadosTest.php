@@ -104,4 +104,14 @@ class ContratoDeEstadosTest extends TestCase
         $this->assertSame($operador->id, $eventos[1]->usuario_id);
         $this->assertSame(['solicitado', 'confirmado'], [$eventos[1]->estado_anterior, $eventos[1]->estado_novo]);
     }
+
+    /** A anonimizacao recusa cliente com agendamento em aberto: mesma lista do enum. */
+    public function test_anonimizacao_usa_os_estados_em_aberto_do_enum(): void
+    {
+        $fonte = (string) DB::scalar("SELECT pg_get_functiondef('public.cleison_anonimizar_cliente(bigint, bigint, varchar, varchar)'::regprocedure)");
+        $this->assertSame(1, preg_match("/a\.estado IN \(([^)]*)\)/", $fonte, $m), $fonte);
+        preg_match_all("/'([a-z_]+)'/", $m[1], $estados);
+
+        $this->assertEqualsCanonicalizing(EstadoAgendamento::emAberto(), $estados[1]);
+    }
 }

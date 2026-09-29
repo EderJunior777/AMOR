@@ -247,6 +247,11 @@ propósito** fora de um banco descartável comprovado
 migrations têm `down()` funcional, mas ele só roda em banco de teste. Uma
 migration errada se corrige com **outra migration, para frente**.
 
+O `down()` da `2026_09_29_000100` é aproximado: devolve INSERT/UPDATE/DELETE
+em `ocupacoes_agenda` e `agendamento_eventos` a **todo** papel que tenha
+SELECT nelas, não só ao da aplicação. Em banco descartável isso não importa;
+é mais um motivo para nunca desfazer em produção.
+
 ### Antes de cada `composer migrar`
 
 1. **Backup**, com o papel dono, no formato custom:
@@ -341,7 +346,9 @@ O comando `cleison:anonimizar-inativos` roda diariamente às 03:30 (fuso São Pa
 e anonimiza clientes sem agendamento há N meses, se configurado.
 
 **Está inerte por enquanto:** sem `CLEISON_RETENCAO_CLIENTE_INATIVO_MESES`, ele
-não anonimiza ninguém (log: "retenção não configurada").
+nem entra na agenda (vazia, zero ou texto também não contam). Rodado à
+mão sem configuração, sai com erro, registra "Retencao nao configurada" no
+log e não anonimiza ninguém.
 
 Quando o prazo for decidido (responsável + jurídico):
 1. Configure `CLEISON_RETENCAO_CLIENTE_INATIVO_MESES` (inteiro > 0, em meses).

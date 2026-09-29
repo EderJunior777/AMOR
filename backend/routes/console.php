@@ -8,4 +8,5 @@ Schedule::command('cleison:anonimizar-inativos')
     ->dailyAt('03:30')
     ->timezone('America/Sao_Paulo')
     ->withoutOverlapping()
-    ->when(fn () => config('cleison.retencao.meses') !== null);
+    // Mesmo criterio do comando: vazio, zero ou texto nao ligam a rotina.
+    ->when(fn () => filter_var(config('cleison.retencao.meses'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) !== false);

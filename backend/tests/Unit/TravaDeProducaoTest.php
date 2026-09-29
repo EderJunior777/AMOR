@@ -122,12 +122,16 @@ class TravaDeProducaoTest extends TestCase
 
     public function test_comandos_que_atendem_http_contam_como_web(): void
     {
-        $this->assertTrue(TravaDeProducao::servindoHttp(console: false, comando: null));
-        $this->assertTrue(TravaDeProducao::servindoHttp(console: true, comando: 'serve'));
-        $this->assertTrue(TravaDeProducao::servindoHttp(console: true, comando: 'octane:start'));
-        $this->assertFalse(TravaDeProducao::servindoHttp(console: true, comando: 'migrate'));
-        $this->assertFalse(TravaDeProducao::servindoHttp(console: true, comando: 'config:cache'));
-        $this->assertFalse(TravaDeProducao::servindoHttp(console: true, comando: 'queue:work'));
-        $this->assertFalse(TravaDeProducao::servindoHttp(console: true, comando: null));
+        $this->assertTrue(TravaDeProducao::servindoHttp(console: false, argumentos: []));
+        $this->assertTrue(TravaDeProducao::servindoHttp(console: true, argumentos: ['serve']));
+        $this->assertTrue(TravaDeProducao::servindoHttp(console: true, argumentos: ['octane:start']));
+        // Opcao antes do comando nao desliga a trava.
+        $this->assertTrue(TravaDeProducao::servindoHttp(console: true, argumentos: ['--env=production', 'octane:start']));
+        $this->assertTrue(TravaDeProducao::servindoHttp(console: true, argumentos: ['--env', 'production', 'serve']));
+        $this->assertTrue(TravaDeProducao::servindoHttp(console: true, argumentos: ['-v', 'serve', '--port=8080']));
+        $this->assertFalse(TravaDeProducao::servindoHttp(console: true, argumentos: ['migrate', '--force']));
+        $this->assertFalse(TravaDeProducao::servindoHttp(console: true, argumentos: ['config:cache']));
+        $this->assertFalse(TravaDeProducao::servindoHttp(console: true, argumentos: ['queue:work']));
+        $this->assertFalse(TravaDeProducao::servindoHttp(console: true, argumentos: []));
     }
 }

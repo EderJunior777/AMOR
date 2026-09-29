@@ -72,4 +72,18 @@ enum EstadoAgendamento: string
     {
         return $this->transicoesPermitidas() === [];
     }
+
+    /**
+     * Valores dos estados em aberto (nao encerrados). O mesmo conjunto esta
+     * no SQL de cleison_anonimizar_cliente (ContratoDeEstadosTest confere).
+     *
+     * @return list<string>
+     */
+    public static function emAberto(): array
+    {
+        return array_values(array_map(
+            fn (self $e) => $e->value,
+            array_filter(self::cases(), fn (self $e) => ! $e->encerrado()),
+        ));
+    }
 }

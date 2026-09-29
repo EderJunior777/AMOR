@@ -145,4 +145,62 @@ class AnonimizacaoPeloDonoTest extends TestCase
         $this->assertNull($chamar($b)); // depois do COMMIT: ja anonimizado
         $this->assertSame(1, DB::table('anonimizacoes')->where('cliente_id', $c['cliente'])->count());
     }
+
+    /**
+     * Corrida: A anonimiza (sem COMMIT) e B, noutro processo, cria um
+     * agendamento para o mesmo cliente. B tem que esperar A e ser recusado
+     * depois; nao pode passar pela checagem enquanto A ainda nao commitou.
+     */
+    public function test_agendamento_concorrente_com_a_anonimizacao_e_recusado(): void
+    {
+        $c = $this->clienteComHistorico();
+        $usuario = $this->proprietario()->id;
+        $profissional = $this->novoProfissional('Concorrente');
+        $a = DB::connection();
+
+        $a->beginTransaction();
+        try {
+            $this->assertNotNull($a->scalar('SELECT public.cleison_anonimizar_cliente(?, ?, ?, ?)',
+                [$c['cliente'], $usuario, 'pedido_titular', 'P-1']));
+
+            $cfg = config('database.connections.pgsql');
+            $processo = proc_open(
+                [PHP_BINARY, base_path('tests/Suporte/reservar_concorrente.php'), 'agendamento', (string) $profissional,
+                    (string) $c['cliente'], $this->em('20:00'), $this->em('20:30'), (string) random_int(1000, 2_000_000_000)],
+                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $tubos, base_path(),
+                array_merge(getenv(), ['CLEISON_PG_HOST' => (string) $cfg['host'], 'CLEISON_PG_PORT' => (string) $cfg['port'],
+                    'CLEISON_PG_DB' => (string) $cfg['database'], 'CLEISON_PG_USER' => (string) $cfg['username'],
+                    'CLEISON_PG_PASS' => (string) $cfg['password']]),
+            );
+            $this->assertIsResource($processo);
+
+            // So commita depois que B esta de fato esperando por uma trava.
+            $b = DB::connection('pgsql_b');
+            $limite = microtime(true) + 30;
+            do {
+                $esperando = (int) $b->scalar("SELECT count(*) FROM pg_stat_activity WHERE application_name = 'cleison_teste_concorrencia' AND wait_event_type = 'Lock'");
+                if ($esperando === 1) {
+                    break;
+                }
+                usleep(20_000);
+            } while (microtime(true) < $limite);
+            $this->assertSame(1, $esperando, 'o processo concorrente nao chegou a esperar a anonimizacao');
+
+            $a->commit();
+        } finally {
+            if ($a->transactionLevel() > 0) {
+                $a->rollBack();
+            }
+        }
+
+        $saida = stream_get_contents($tubos[1]).stream_get_contents($tubos[2]);
+        proc_close($processo);
+        $resultado = json_decode(trim($saida), true);
+
+        $this->assertIsArray($resultado, $saida);
+        $this->assertFalse($resultado['ok'], 'agendamento gravado para cliente anonimizado: '.$saida);
+        $this->assertStringContainsString('clientes_anonimizado_fechado', $resultado['erro']);
+        $this->assertSame(0, DB::table('agendamentos')->where('cliente_id', $c['cliente'])
+            ->whereIn('estado', ['solicitado', 'confirmado', 'em_atendimento'])->count());
+    }
 }

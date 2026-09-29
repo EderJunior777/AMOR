@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\PapelUsuario;
 use App\Models\User;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\DB;
 use Tests\Suporte\BancoDeTeste;
 use Tests\Suporte\CenarioDeAnonimizacao;
@@ -109,5 +110,17 @@ class AnonimizarInativosTest extends TestCase
             ->expectsOutput('Retencao (6 meses): 0 cliente(s) anonimizado(s), 0 recusado(s).')
             ->assertSuccessful();
         $this->assertSame(2, DB::table('anonimizacoes')->count());
+    }
+
+    public function test_agendamento_diario_so_liga_com_prazo_valido(): void
+    {
+        $evento = collect($this->app->make(Schedule::class)->events())
+            ->first(fn ($e) => str_contains((string) $e->command, 'cleison:anonimizar-inativos'));
+        $this->assertNotNull($evento);
+
+        foreach ([[null, false], ['', false], ['0', false], ['seis', false], ['6', true]] as [$meses, $liga]) {
+            config(['cleison.retencao.meses' => $meses]);
+            $this->assertSame($liga, $evento->filtersPass($this->app), 'meses='.var_export($meses, true));
+        }
     }
 }
