@@ -97,8 +97,12 @@ Migration: `backend/database/migrations/2026_09_24_000300_criar_clientes_e_agend
 - Transação por reserva: agendamento + itens; itens conferidos no COMMIT.
 - `23P01` → HTTP 409 "horário ocupado". `40P01`/`40001` → repetir (até 3×).
 - **Erro no COMMIT chega como `PDOException` crua** (verificado em teste).
-- Definir o ator: `set_config('cleison.ator', ..., true)` e
-  `set_config('cleison.usuario_id', ..., true)`.
+- **Toda escrita em agendamento ou bloqueio passa por
+  `App\Support\TransacaoAuditada::executar(Ator, ?User, Closure)`**, o único
+  ponto que define `cleison.ator`/`cleison.usuario_id` (`set_config(...,
+  true)`, escopo de transação). `operador` exige `User` ativo no banco;
+  `cliente` e `sistema` não levam `User`. Um teste impede `cleison.ator` em
+  qualquer outro arquivo de `app/`.
 - Idempotência por `chave_idempotencia` + `hash_requisicao`.
 - Itens não são transferidos entre agendamentos (o banco recusa).
 - Validar na aplicação: data real do calendário, passado, antecedência,
