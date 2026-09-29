@@ -62,6 +62,11 @@ que é o bastante para repetir a requisição (D6).
    `proprietario`. A checagem fica dentro da função, não só no PHP.
    Consequência: a retenção automática também roda em nome de um
    proprietário, configurado em `CLEISON_RETENCAO_RESPONSAVEL_ID`.
+   **Limite (revisão de segurança):** isso barra bug e engano, não o papel
+   da aplicação comprometido, que tem DML em `users` e poderia promover um
+   usuário antes de chamar a função. Fechar isso exige que papel e ativo só
+   mudem por função do dono (trigger em `users`); fica para a etapa 3,
+   porque hoje o `cleison:criar-proprietario` grava com o papel da aplicação.
 3. Comando `cleison:anonimizar-cliente` com prévia das contagens,
    confirmação digitando o id do cliente, `--forcar` sem terminal
    interativo e `--simular` (seção 6).

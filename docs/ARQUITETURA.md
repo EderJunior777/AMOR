@@ -196,19 +196,99 @@ ocupação). Também testa duas conexões (a segunda espera a primeira e perde
 com `23P01`), bloqueio × agendamentos concorrentes e horários encostados em
 paralelo.
 
-## 9. Segurança: o que existe e o que não existe
+## 9. Tratamento de erros do banco
+
+Erros de banco chegam à aplicação como `PDOException` (queries diretas) ou
+`Illuminate\Database\QueryException` (Query Builder / Eloquent). A tradução é
+centralizada em `App\Support\ErroDeBanco`:
+
+| SQLSTATE | HTTP | Significado |
+|---|---|---|
+| 23P01 | 409 | Sobreposição de horário (exclusão GIST) |
+| 23514, 23505, 23503, 23001 | 422 | Violação de constraint (CHECK, UNIQUE, FK) |
+| 40P01, 40001 | 503 + `Retry-After: 1` | Deadlock ou serialização (repetir) |
+| outros | 500 | Erro interno ou bug SQL |
+
+Resposta HTTP padrão (sem revelar causa):
+```json
+{"mensagem": "...", "codigo": "...", "correlacao": "<uuid>"}
+```
+
+O `codigo` é estável e genérico (`horario_indisponivel`, `dados_invalidos`,
+`tente_novamente`, `erro_interno`). A `mensagem` vem da tabela `MENSAGENS`
+pelo nome da constraint ou da regra do trigger, lido só da primeira linha do
+erro (o `DETAIL` traz dado da linha), ou é genérica. O log leva
+apenas SQLSTATE, constraint, id de correlação e status HTTP — nunca os
+parâmetros da query (que podem conter nome, telefone ou endereço).
+
+Em console (comandos artisan e scheduler), o `App\Console\Kernel` imprime a
+mensagem traduzida + id de correlação, nunca o SQL nem host/porta. Exceção:
+na conexão do dono (`pgsql_migracao`, só no pipeline de `composer migrar`) a
+mensagem completa aparece, porque os `RAISE` das migrations trazem a
+instrução de correção.
+
+## 10. GET /up: saúde sem exposição
+
+`GET /up` faz `SELECT 1` no banco. Respostas:
+- 200 `{"status":"up"}` se respondeu.
+- 503 `{"status":"down","mensagem":"Banco de dados indisponível"}` se falhar.
+
+Diferente do Laravel padrão: não expõe host, porta, usuário nem mensagem do erro
+(que poderia revelar configuração). Implementação: `app/Http/Controllers/SaudeController.php`.
+
+`GET /` (raiz) responde 204 sem corpo quando pronta. Rotas de negócio vêm na etapa 2.
+
+## 11. LGPD: Anonimização de clientes
+
+Resumo; detalhes em [`LGPD-ANONIMIZACAO.md`](LGPD-ANONIMIZACAO.md) (D1–D8).
+
+**O que muda:** cliente anonimizado deixa de ter nome, telefone, observações,
+endereço e texto livre; o histórico de agendamento continua (sem apontar para
+pessoa identificável). Motivo: atender ao pedido de eliminação do titular
+(LGPD) sem apagar o histórico da agenda nem os números.
+
+**Operação:**
+- `cleison:anonimizar-cliente <id> --usuario=<prop> --protocolo=<proto>`:
+  pedido do titular. Mostra contagens (nunca dados pessoais), pede confirmação.
+- `cleison:anonimizar-inativos`: retenção automática, diária às 03:30 São Paulo
+  (decisão D5 aberta: prazo configurável, sem padrão).
+
+**Implementação:** função `SECURITY DEFINER` `cleison_anonimizar_cliente(...)` no
+banco (migrations 2026_09_29_000300) roda como o dono e é o único ponto que
+altera dados pessoais de histórico encerrado. A aplicação a chama dentro de
+`TransacaoAuditada` (ator operador ou sistema).
+
+**Garantias:**
+- Idempotente: segunda chamada com mesmo cliente devolve NULL, não muda nada.
+- Tabela `anonimizacoes` sem dado pessoal (só `cliente_id`, timestamp, origem,
+  `usuario_id`, protocolo formato fechado, contagens).
+- Triggers de imutabilidade têm exceção estreita: permite UPDATE só para o dono
+  da tabela, só das colunas de dado pessoal, com valores anonimizados. A
+  exceção não passa por variável de sessão (que a aplicação pode alterar).
+- **Limite conhecido:** a checagem "só proprietário ativo" e o ator do
+  histórico protegem contra bug e esquecimento, não contra o papel da
+  aplicação comprometido. Esse papel tem DML em `users` (o
+  `cleison:criar-proprietario` roda com ele) e define `cleison.ator` por
+  `set_config`. Proposta para a etapa 3: promover e ativar usuário só por
+  função do dono, com trigger em `users`.
+
+**Fora desta etapa:** site atual (Netlify Blobs), backups, logs de servidor,
+WhatsApp. Ver seção "Restauração de backup x LGPD" em `../backend/README.md`.
+
+## 12. Segurança: o que existe e o que não existe
 
 Existe: constraints, papéis separados, telefone E.164 único, histórico só de
 inserção, nenhuma senha padrão, `.env` fora do git e do pacote, `APP_DEBUG`
 falso por padrão no exemplo, cookie de sessão `Secure` por padrão em
-produção, `HttpOnly`, sessão cifrada.
+produção, `HttpOnly`, sessão cifrada, trava de boot em `APP_ENV=production`,
+erro de banco sem PII, anonimização LGPD.
 
 **Não existe ainda** (etapas 2–3): login, MFA, limites de tentativa,
 autorização, CSRF em rotas próprias, prova de posse do telefone, cabeçalhos
-de segurança, service worker da versão migrada. Telefone e endereço ficam em
-**texto** no banco (necessários ao atendimento); a proteção é de acesso e de
-backup (etapa 6). Hash de chave não "criptografa" nada.
+de segurança, service worker da versão migrada, validação de data/expediente/
+antecedência na API (etapa 2). Telefone e endereço ficam em **texto** no banco
+(necessários ao atendimento); a proteção é de acesso e de backup (etapa 6).
 
-## 10. Como rodar
+## 13. Como rodar
 
 [`backend/README.md`](../backend/README.md).

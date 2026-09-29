@@ -185,14 +185,21 @@ segredos de banco, em lugares diferentes**:
 
 | Segredo | Onde mora | Quem usa |
 |---|---|---|
-| `DB_PASSWORD` (papel `cleison_app`, só DML) | Servidor web | A aplicação |
-| `DB_MIGRACAO_USERNAME`/`DB_MIGRACAO_PASSWORD` (papel `cleison`, dono do schema) | **Só no pipeline de deploy** | `composer migrar` |
+| `DB_USERNAME` e `DB_PASSWORD` (papel `cleison_app`, só DML) | Servidor web | A aplicação em tempo de execução |
+| `DB_MIGRACAO_USERNAME` e `DB_MIGRACAO_PASSWORD` (papel `cleison`, dono do schema) | **Só no pipeline de deploy** | `composer migrar` (migrations) |
+
+O servidor web **nunca** tem acesso ao papel dono. As senhas são
+configuradas uma única vez (primeira implantação); depois, **apenas**
+o pipeline de deploy tem acesso a `DB_MIGRACAO_*`. Se a senha da aplicação
+precisar rotacionar (decisão "Ações humanas pendentes", item 2), use
+`ALTER ROLE cleison_app PASSWORD '...'` como superusuário e depois
+atualize `DB_PASSWORD` em cada ambiente.
 
 Ordem no pipeline:
 
 ```bash
 composer install --no-dev --optimize-autoloader
-# backup do banco ANTES de migrar (ver "Migração só para frente")
+# backup do banco ANTES de migrar (ver "Runbook: Migração só para frente")
 DB_MIGRACAO_USERNAME=... DB_MIGRACAO_PASSWORD=... composer migrar
 php artisan config:cache     # SEM DB_MIGRACAO_* no ambiente deste passo
 ```
@@ -213,7 +220,7 @@ houver:
   `require`/`verify-ca`/`verify-full` (a `DB_URL` também é lida);
 - senha do papel dono presente, no config (inclusive via `DB_MIGRACAO_URL`)
   ou no ambiente do processo;
-- `TRUSTED_PROXIES` com curinga.
+- `TRUSTED_PROXIES` com curinga ou faixa ampla demais (`/0`, ou IPv4 mais largo que `/8`).
 
 **Onde a trava vale:** em processos que **atendem HTTP**, ou seja,
 requisições web e os comandos `artisan serve`/`octane:*`. Os demais
@@ -231,6 +238,132 @@ A distinção é feita por `runningInConsole()` e pelo nome do comando
 confiável: o IP e o esquema vêm da própria conexão. Curinga (`*`) é
 recusado em produção.
 
+## Runbook: migração só para frente
+
+Em produção o esquema só avança. `migrate:rollback`, `migrate:reset`,
+`migrate:refresh`, `migrate:fresh` e `db:wipe` são **bloqueados de
+propósito** fora de um banco descartável comprovado
+(`app/Console/Protegidos/*`, `app/Support/AlvoDescartavel.php`). As
+migrations têm `down()` funcional, mas ele só roda em banco de teste. Uma
+migration errada se corrige com **outra migration, para frente**.
+
+### Antes de cada `composer migrar`
+
+1. **Backup**, com o papel dono, no formato custom:
+   ```bash
+   pg_dump -h <host> -p <porta> -U <papel dono> -d <banco> \
+     --format=custom --file=cleison-AAAA-MM-DD-HHMM.backup
+   ```
+   Guarde fora do servidor do banco. Ensaie a restauração num banco
+   separado de tempos em tempos (a política de backup é a decisão 22 de
+   `docs/DECISOES-PENDENTES.md`).
+2. Exporte a lista de anonimizações (ver "Restauração de backup x LGPD").
+3. Rode `composer migrar` no pipeline, com os segredos do dono.
+
+### Se a migration falhar
+
+No PostgreSQL, cada migration roda na própria transação: a que falhou é
+desfeita inteira, e as anteriores do mesmo `migrate` ficam aplicadas. Leia
+a mensagem: os `RAISE` das migrations dizem o que corrigir (ex.:
+`[migracao_ocupacoes_fantasma]`, PostgreSQL < 17). Na conexão do dono o
+console mostra a mensagem completa. Corrija o dado ou escreva uma migration
+nova e rode `composer migrar` de novo. **Nunca** tente desfazer em produção.
+
+A `2026_09_29_000300` (anonimização) tem um motivo a mais: o `down()` dela
+**recusa rodar** se houver anonimizações registradas, porque o registro é
+o que permite reaplicá-las depois de restaurar um backup. A tabela
+`anonimizacoes` é só inserção, até para o dono.
+
+### Restaurar um backup
+
+```bash
+createdb -h <host> -U <papel dono> cleison_restaurado
+pg_restore -h <host> -p <porta> -U <papel dono> -d cleison_restaurado \
+  --no-owner --role=<papel dono> cleison-AAAA-MM-DD-HHMM.backup
+```
+
+Depois: confira os privilégios do papel da aplicação (seção "Dois papéis
+no banco"), **reaplique as anonimizações** (seção seguinte) e só então
+aponte a aplicação para o banco restaurado.
+
+## Restauração de backup x LGPD
+
+Um backup anterior a uma anonimização traz de volta o dado pessoal daquele
+cliente. Por isso:
+
+1. **Sempre que possível, antes de restaurar** (e também periodicamente,
+   e antes de cada `composer migrar`), exporte do banco atual:
+   ```sql
+   SELECT cliente_id, protocolo FROM anonimizacoes ORDER BY cliente_id;
+   ```
+   Guarde a lista **fora do banco**: se o banco atual se perder, só ela
+   diz quem precisa ser anonimizado de novo. A lista não tem dado pessoal.
+2. Restaure o backup.
+3. **Antes de reabrir o sistema**, reaplique para cada linha da lista, com
+   o id de um proprietário ativo:
+   ```bash
+   while IFS=, read -r cliente protocolo; do
+     php artisan cleison:anonimizar-cliente "$cliente" \
+       --usuario=<id do proprietario> --protocolo="${protocolo:-RESTAURACAO}" \
+       --forcar --no-interaction
+   done < anonimizacoes.csv
+   ```
+   O comando é idempotente: cliente que já está anonimizado no backup só
+   gera "Nada a fazer".
+
+## Operação LGPD
+
+Antes da etapa 3 (painel), o atendimento a pedidos de eliminação do cliente
+(anonimização) é pelo comando de console. Documentação completa:
+[`../docs/LGPD-ANONIMIZACAO.md`](../docs/LGPD-ANONIMIZACAO.md).
+
+### Pedido do titular
+
+1. Operador recebe o pedido, confirma a identidade (telefone cadastrado) e anota
+   um protocolo.
+2. Cancela ou conclui qualquer agendamento ativo do cliente (a anonimização
+   recusa se houver).
+3. Executa:
+   ```bash
+   php artisan cleison:anonimizar-cliente <id> \
+     --usuario=<proprietario_id> \
+     --protocolo=<protocolo>
+   ```
+   O comando mostra contagens (só números, nunca nome/telefone/endereço),
+   pede confirmação digitando o id do cliente e executa a função do banco
+   que de fato confere o proprietário e recusa regras. Opções:
+   - `--simular`: só mostra as contagens, não altera nada.
+   - `--forcar`: dispensa a confirmação interativa (para scripts/CI).
+
+### Retenção automática (LGPD, decisão D5)
+
+O comando `cleison:anonimizar-inativos` roda diariamente às 03:30 (fuso São Paulo)
+e anonimiza clientes sem agendamento há N meses, se configurado.
+
+**Está inerte por enquanto:** sem `CLEISON_RETENCAO_CLIENTE_INATIVO_MESES`, ele
+não anonimiza ninguém (log: "retenção não configurada").
+
+Quando o prazo for decidido (responsável + jurídico):
+1. Configure `CLEISON_RETENCAO_CLIENTE_INATIVO_MESES` (inteiro > 0, em meses).
+2. Configure `CLEISON_RETENCAO_RESPONSAVEL_ID` (id de um proprietário ativo, em
+   nome de quem a rotina roda).
+3. Assegure que `php artisan schedule:run` roda em cron a cada minuto.
+
+Ver `config/cleison.php` e `routes/console.php`.
+
+## Saúde e rotas
+
+`GET /up` — confere que o banco está disponível. Resposta:
+- 200 `{"status":"up"}` se o banco respondeu.
+- 503 `{"status":"down","mensagem":"Banco de dados indisponível"}` sem detalhe
+  de conexão (não expõe host, porta, usuário nem mensagem do erro).
+
+Implementação: [`app/Http/Controllers/SaudeController.php`](app/Http/Controllers/SaudeController.php).
+Use para o health check do balanceador.
+
+`GET /` — responde 204 (sem corpo) quando a aplicação está pronta. Rotas públicas
+e de negócio não existem nesta etapa.
+
 ## Empacotar para revisão ou distribuição
 
 **Nunca zipe a pasta.** Um pacote anterior feito assim levou o `.env` (com
@@ -245,8 +378,9 @@ scripts/empacotar.sh <commit>   # outro commit ou tag
 
 Saída em `entregas/` (ignorada pelo git): `cleison-<commit>-<data>.zip` e o
 `.sha256`. Antes de gerar, o script confere os nomes (`.env*`, logs,
-`vendor/`, caches, `.ferramentas/`) e o conteúdo (`APP_KEY=base64:`, senhas
-preenchidas, caminhos `C:/Users/...`). Se achar algo, ele recusa.
+`vendor/`, caches, `.ferramentas/`) e o conteúdo (chave do app preenchida, senhas
+preenchidas, credencial dentro de `DB_URL`, caminhos da pasta de usuário do
+Windows). Se achar algo, ele recusa.
 
 ## Ações humanas pendentes
 
@@ -263,7 +397,28 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    `ALTER ROLE cleison PASSWORD '<nova>'`. Depois, atualize o segredo de
    migração. No cluster local descartável, basta recriar com
    `postgres-local.ps1 criar`.
-4. **Decidir o destino da raiz do repositório.** A cópia de trabalho da raiz
+4. **Configurar os dois segredos no pipeline de deploy:**
+   - `DB_MIGRACAO_USERNAME` e `DB_MIGRACAO_PASSWORD` (papel `cleison`, dono)
+     no cofre de secrets do CI/CD, passados **apenas** ao passo de
+     `composer migrar`.
+   - `DB_PASSWORD` (papel `cleison_app`, aplicação) no cofre do servidor web.
+   - Validar que o passo de `config:cache` **não** tem acesso a
+     `DB_MIGRACAO_*`.
+5. **LGPD D5: Prazo de retenção de cliente inativo.**
+   - Decisão conjunta (responsável + jurídico, com validação de base legal).
+   - Parâmetro configurável sem valor padrão:
+     `CLEISON_RETENCAO_CLIENTE_INATIVO_MESES` (inteiro > 0, em meses).
+   - Responsável da retenção: `CLEISON_RETENCAO_RESPONSAVEL_ID` (id de um
+     proprietário ativo, em nome de quem a rotina `cleison:anonimizar-inativos`
+     roda diariamente às 03:30 de São Paulo).
+   - Até definir: o comando não anonimiza ninguém (status: inerte).
+6. **Aprovar mover `laravel/tinker` para `require-dev`** (proposta):
+   - Tinker é uma shell REPL para debugging e não precisa em produção.
+   - Altera `composer.lock` (aprove antes de executar).
+   - Comando: `composer remove laravel/tinker && composer require --dev laravel/tinker`.
+   - Ou deixar em `require` se a organização preferir ter acesso em produção
+     para debugging direto (trade-off de segurança/conveniência).
+7. **Decidir o destino da raiz do repositório.** A cópia de trabalho da raiz
    é o ZIP original e diverge do commit `0ddedb8`. Esta missão não mexe
    nela. Decida se ela volta ao `HEAD` ou fica como referência do ZIP
    (`docs/ARQUITETURA.md` §1).
@@ -275,7 +430,7 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    | `testes/servidor-local.mjs` | Desfaz um trecho da correção de ambiente Windows |
    | Outros 17 da raiz (`index.html`, `README.md`, `sw.js`, `assets/*`, `package*.json`...) | Só fim de linha (LF/CRLF), sem mudança de conteúdo |
 
-5. ⚠️ **Dados pessoais no site atual (Netlify), em produção hoje.** A
+8. ⚠️ **Dados pessoais no site atual (Netlify), em produção hoje.** A
    função `netlify/functions/agenda.mjs` grava **nome e telefone de cada
    reserva** no Netlify Blobs (loja `agenda`, linhas 185-186). A
    anonimização da Fase 8 (`docs/LGPD-ANONIMIZACAO.md`) só alcança o
@@ -283,16 +438,39 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    esses registros ficam lá, quem atende pedido de titular sobre eles
    (hoje, só manualmente) e, na migração para o backend, se são importados,
    anonimizados ou descartados.
+9. **Decisões da etapa 2 (especificação):** E1 a E5 em
+   [`docs/ESPEC-RESERVA.md`](../docs/ESPEC-RESERVA.md), seção 10.
+   - E1: Defesa em profundidade no banco para o canal site (validação de
+     serviço ativo e vínculo profissional_servico no trigger do INSERT)?
+   - E2: Operador pode encaixar fora do expediente ou da antecedência?
+   - E3: Site pode alterar nome de cliente já cadastrado?
+   - E4: Quantos serviços por reserva?
+   - E5: Estado inicial de reserva pelo site?
 
 ## Mapa
 
 | Caminho | Conteúdo |
 |---|---|
 | `database/migrations/` | Esquema (SQL explícito, constraints nomeadas, triggers) |
-| `app/Enums/` | Estado do agendamento (contrato), origem, modalidade, papel |
+| `database/migrations/2026_09_29_000100_fechar_escrita_direta_na_agenda.php` | Exigência PostgreSQL >= 17; fecha INSERT/UPDATE/DELETE em `ocupacoes_agenda` e `agendamento_eventos` |
+| `database/migrations/2026_09_29_000200_fechar_sequencias_da_agenda.php` | Fecha sequências de ocupações e histórico |
+| `database/migrations/2026_09_29_000300_anonimizacao_de_clientes.php` | Tabela `anonimizacoes`, triggers de exceção à imutabilidade, função `cleison_anonimizar_cliente` |
+| `app/Enums/` | Estado do agendamento (contrato), origem, modalidade, papel, origem de anonimização |
 | `app/Models/` | Models do domínio usados pelo seed/testes |
 | `app/Support/Telefone.php` | Normalização para E.164 |
+| `app/Support/TravaDeProducao.php` | Validação de segurança em `APP_ENV=production` e em processos HTTP |
+| `app/Support/ErroDeBanco.php` | Classificação de erros PostgreSQL por SQLSTATE, respostas HTTP, log sem PII |
+| `app/Support/TransacaoAuditada.php` | Ponto único de entrada para escrever em agendamentos/bloqueios; define ator e usuário no contexto |
+| `app/Support/Anonimizacao.php` | Lado PHP da anonimização LGPD (previa, chamada da função do banco em transação auditada) |
+| `app/Console/Kernel.php` | Tratamento de erro de banco em console (mensagem traduzida, id de correlação) |
 | `app/Console/Commands/CriarProprietario.php` | Bootstrap do primeiro proprietário |
+| `app/Console/Commands/AnonimizarCliente.php` | Comando `cleison:anonimizar-cliente`: pedido do titular (LGPD) com confirmação interativa |
+| `app/Console/Commands/AnonimizarInativos.php` | Comando `cleison:anonimizar-inativos`: retenção automática agendada (inerte até D5) |
+| `app/Http/Controllers/SaudeController.php` | `GET /up`: confere banco sem expor detalhe de conexão (503 se falhar) |
+| `config/cleison.php` | Configuração de retenção LGPD (prazo e responsável, sem padrão) |
+| `routes/console.php` | Agenda diária `cleison:anonimizar-inativos` às 03:30 de São Paulo |
 | `database/seeders/DemonstracaoSeeder.php` | Dados de exemplo do ZIP, identificados |
-| `tests/Feature/Banco/` | Constraints, ocupação, estados, privilégios, concorrência, migrations |
+| `tests/Feature/Banco/` | Constraints, ocupação, estados, privilégios, concorrência, migrations, anonimização |
 | `tests/Suporte/` | Helpers, trait `BancoDeTeste`, processo filho da concorrência |
+| `docs/LGPD-ANONIMIZACAO.md` | Especificação completa da anonimização (D1–D8, decisões, funções SQL) |
+| `docs/ESPEC-RESERVA.md` | Especificação da reserva de horário (etapa 2, E1–E5, decisões) |
