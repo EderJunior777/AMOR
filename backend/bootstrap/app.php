@@ -26,8 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->shouldRenderJsonWhen($pedeJson);
 
-        // Erros do PostgreSQL (QueryException e a PDOException crua do COMMIT):
-        // log sem SQL nem bindings (PII) no lugar do log padrao, e resposta por SQLSTATE.
+        // Erros do PostgreSQL (QueryException e a PDOException crua do COMMIT).
+        // report: SEMPRE (HTTP, comando, fila, scheduler) pelo ErroDeBanco, no
+        // lugar do log padrao, que traria SQL, bindings e a mensagem do trigger.
+        // render: so em requisicao JSON; o resto segue o padrao do Laravel.
         $exceptions->report(fn (PDOException $e) => ErroDeBanco::registrar($e))->stop();
         $exceptions->render(fn (PDOException $e, Request $request) => $pedeJson($request) ? ErroDeBanco::resposta($e) : null);
     })->create();
