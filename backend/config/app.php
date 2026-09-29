@@ -123,4 +123,15 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    | Proxies confiaveis: IPs ou CIDR separados por virgula (TRUSTED_PROXIES),
+    | ex.: "10.0.0.0/8,192.168.1.10". So deles se aceita X-Forwarded-For e
+    | X-Forwarded-Proto. Vazio = nenhum. Curinga ("*") e recusado em producao
+    | pela trava de boot (App\Support\TravaDeProducao).
+    */
+    'proxies_confiaveis' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('TRUSTED_PROXIES', '')),
+    ), fn (string $p) => $p !== '')),
+
 ];

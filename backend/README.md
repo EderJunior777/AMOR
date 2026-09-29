@@ -178,6 +178,59 @@ paradas:
    btree; instala a extensão `amcheck`, remova depois). Conexão bem-sucedida
    **não** é auditoria de integridade.
 
+## Deploy (produção)
+
+Base: [`.env.production.example`](.env.production.example). Há **dois
+segredos de banco, em lugares diferentes**:
+
+| Segredo | Onde mora | Quem usa |
+|---|---|---|
+| `DB_PASSWORD` (papel `cleison_app`, só DML) | Servidor web | A aplicação |
+| `DB_MIGRACAO_USERNAME`/`DB_MIGRACAO_PASSWORD` (papel `cleison`, dono do schema) | **Só no pipeline de deploy** | `composer migrar` |
+
+Ordem no pipeline:
+
+```bash
+composer install --no-dev --optimize-autoloader
+# backup do banco ANTES de migrar (ver "Migração só para frente")
+DB_MIGRACAO_USERNAME=... DB_MIGRACAO_PASSWORD=... composer migrar
+php artisan config:cache     # SEM DB_MIGRACAO_* no ambiente deste passo
+```
+
+Se `config:cache` rodar com a senha do dono no ambiente, ela vai parar no
+cache e a trava de boot recusa subir a aplicação.
+
+### Trava de boot
+
+`App\Support\TravaDeProducao`, chamada em `AppServiceProvider::boot()`.
+Com `APP_ENV=production`, a aplicação **não sobe** (lança
+`ConfiguracaoInsegura`, cuja mensagem cita só os nomes das variáveis) se
+houver:
+
+- `APP_DEBUG` ligado ou `APP_KEY` vazia;
+- cookie de sessão sem `Secure` (`SESSION_SECURE_COOKIE` falso);
+- conexão da aplicação fora do `pgsql` ou com `sslmode` diferente de
+  `require`/`verify-ca`/`verify-full` (a `DB_URL` também é lida);
+- senha do papel dono presente, no config (inclusive via `DB_MIGRACAO_URL`)
+  ou no ambiente do processo;
+- `TRUSTED_PROXIES` com curinga.
+
+**Onde a trava vale:** em processos que **atendem HTTP**, ou seja,
+requisições web e os comandos `artisan serve`/`octane:*`. Os demais
+comandos de console **não** são travados, porque o pipeline precisa deles:
+`package:discover` (no `composer install`), `composer migrar` (que tem a
+senha do dono) e `config:cache`. Os workers de fila também ficam de fora.
+A distinção é feita por `runningInConsole()` e pelo nome do comando
+(`TravaDeProducao::COMANDOS_HTTP`).
+
+### Proxies confiáveis
+
+`TRUSTED_PROXIES` recebe IPs ou CIDR separados por vírgula (ex.:
+`10.0.0.0/8,192.168.1.10`). Só desses endereços se aceitam
+`X-Forwarded-For` e `X-Forwarded-Proto`. Vazio significa nenhum proxy
+confiável: o IP e o esquema vêm da própria conexão. Curinga (`*`) é
+recusado em produção.
+
 ## Empacotar para revisão ou distribuição
 
 **Nunca zipe a pasta.** Um pacote anterior feito assim levou o `.env` (com

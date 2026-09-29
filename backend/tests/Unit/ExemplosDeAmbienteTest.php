@@ -40,10 +40,28 @@ class ExemplosDeAmbienteTest extends TestCase
 
     public function test_exemplo_nao_traz_senha_nem_chave(): void
     {
-        $vars = $this->variaveis('.env.example');
-
-        foreach (['APP_KEY', 'DB_PASSWORD', 'DB_MIGRACAO_PASSWORD'] as $nome) {
-            $this->assertSame('', $vars[$nome] ?? '', "{$nome} deve vir vazio no exemplo");
+        foreach (['.env.example', '.env.production.example'] as $arquivo) {
+            $vars = $this->variaveis($arquivo);
+            foreach (['APP_KEY', 'DB_PASSWORD', 'DB_MIGRACAO_PASSWORD'] as $nome) {
+                $this->assertSame('', $vars[$nome] ?? '', "{$arquivo}: {$nome} deve vir vazio");
+            }
         }
+    }
+
+    public function test_exemplo_de_producao_e_seguro_por_padrao(): void
+    {
+        $vars = $this->variaveis('.env.production.example');
+
+        $this->assertSame('production', $vars['APP_ENV'] ?? null);
+        $this->assertSame('false', $vars['APP_DEBUG'] ?? null);
+        $this->assertSame('daily', $vars['LOG_STACK'] ?? null);
+        $this->assertSame('14', $vars['LOG_DAILY_DAYS'] ?? null);
+        $this->assertSame('warning', $vars['LOG_LEVEL'] ?? null);
+        $this->assertSame('verify-full', $vars['DB_SSLMODE'] ?? null);
+        $this->assertContains($vars['SESSION_SECURE_COOKIE'] ?? 'ausente', ['ausente', 'true']);
+
+        // A senha (e o usuario/URL) do papel dono nao mora no servidor web:
+        // migrations rodam no pipeline de deploy, com segredo proprio.
+        $this->assertSame([], preg_grep('/^DB_MIGRACAO_/', array_keys($vars)));
     }
 }

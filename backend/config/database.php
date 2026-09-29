@@ -100,6 +100,8 @@ return [
             // estabelecimento (America/Sao_Paulo) acontece na apresentacao.
             'timezone' => 'UTC',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // verify-full exige o certificado raiz da CA do banco.
+            'sslrootcert' => env('DB_SSLROOTCERT'),
         ],
 
         // Mesmo banco, papel DONO do schema. So para migrations:
@@ -120,6 +122,8 @@ return [
             'search_path' => 'public',
             'timezone' => 'UTC',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // verify-full exige o certificado raiz da CA do banco.
+            'sslrootcert' => env('DB_SSLROOTCERT'),
         ],
 
         'sqlsrv' => [
