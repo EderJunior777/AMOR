@@ -2,6 +2,8 @@
 
 namespace App\Domain\Agenda;
 
+use App\Enums\Ator;
+use App\Enums\EstadoAgendamento;
 use App\Enums\Modalidade;
 use App\Models\Agendamento;
 use App\Models\AgendamentoItem;
@@ -9,13 +11,17 @@ use App\Models\EnderecoCliente;
 use App\Models\Estabelecimento;
 use App\Models\ExcecaoExpediente;
 use App\Models\ExpedienteSemanal;
+use App\Models\Profissional;
 use App\Models\User;
 use App\Support\AutoriaInvalida;
 use App\Support\ErroDeBanco;
+use App\Support\Telefone;
 use App\Support\TransacaoAuditada;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -144,6 +150,262 @@ final class ReservarHorario
         return new ResultadoDaReserva($this->carregar($existente), true);
     }
 
+    // ------------------------------------------------------------------
+    // Reserva existente (docs/ESPEC-RESERVA.md): consultar, cancelar,
+    // remarcar e confirmar. Toda escrita: TransacaoAuditada dentro de
+    // RepetirEmConflito, com o agendamento travado (FOR UPDATE) e o estado
+    // conferido dentro da transacao. O cliente se identifica por codigo +
+    // telefone; codigo mal formado, inexistente e telefone que nao confere
+    // dao a MESMA recusa (reserva_nao_encontrada).
+    // ------------------------------------------------------------------
+
+    /**
+     * So leitura.
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada
+     */
+    public function consultarPeloCliente(string $codigo, string $telefone): Agendamento
+    {
+        return $this->carregar($this->localizar($codigo, $telefone, travar: false));
+    }
+
+    /**
+     * Cancelamento pelo site: reserva solicitada ou confirmada, com a
+     * antecedencia minima ate o horario atual.
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite, fora_do_prazo
+     */
+    public function cancelarPeloCliente(string $codigo, string $telefone): Agendamento
+    {
+        return $this->alterar(Ator::Cliente, null, function () use ($codigo, $telefone) {
+            $agendamento = $this->localizar($codigo, $telefone, travar: true);
+            $this->exigirEstado($agendamento, EstadoAgendamento::Solicitado, EstadoAgendamento::Confirmado);
+            $this->exigirPrazo($agendamento, Estabelecimento::atual() ?? throw ReservaRecusada::por('agenda_indisponivel'));
+
+            return $this->cancelar($agendamento, null);
+        });
+    }
+
+    /**
+     * Cancelamento pelo operador: de onde o banco permite a transicao
+     * (solicitado, confirmado, em_atendimento), sem prazo. O motivo vai para
+     * motivo_cancelamento (e dai para o evento).
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite
+     */
+    public function cancelarPeloOperador(string $codigo, User $operador, ?string $motivo = null): Agendamento
+    {
+        return $this->alterar(Ator::Operador, $operador, function () use ($codigo, $motivo) {
+            $agendamento = $this->localizar($codigo, null, travar: true);
+            if (! $agendamento->estado->podeIrPara(EstadoAgendamento::Cancelado)) {
+                throw ReservaRecusada::por('estado_nao_permite');
+            }
+
+            return $this->cancelar($agendamento, self::texto($motivo));
+        });
+    }
+
+    /**
+     * Remarcacao pelo site: so reserva solicitada (a confirmada cancela e
+     * faz outro pedido). Mesmo profissional e mesmos itens (snapshot).
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, remarcacao_exige_novo_pedido, estado_nao_permite,
+     *                         fora_do_prazo, V1 a V4 e V8, profissional_indisponivel
+     * @throws QueryException 23P01 (horario ocupado), 40P01/40001 esgotados
+     */
+    public function remarcarPeloCliente(string $codigo, string $telefone, string $data, string $hora): Agendamento
+    {
+        return $this->alterar(Ator::Cliente, null, function () use ($codigo, $telefone, $data, $hora) {
+            $agendamento = $this->localizar($codigo, $telefone, travar: true);
+            if ($agendamento->estado === EstadoAgendamento::Confirmado) {
+                throw ReservaRecusada::por('remarcacao_exige_novo_pedido');
+            }
+            $this->exigirEstado($agendamento, EstadoAgendamento::Solicitado);
+            $estabelecimento = Estabelecimento::atual() ?? throw ReservaRecusada::por('agenda_indisponivel');
+            $this->exigirPrazo($agendamento, $estabelecimento);
+
+            return $this->remarcar($agendamento, $estabelecimento, $data, $hora, encaixe: false);
+        });
+    }
+
+    /**
+     * Remarcacao pelo operador: solicitada ou confirmada, sem prazo. Com
+     * motivo de encaixe (nao vazio) dispensa antecedencia e expediente (E2),
+     * nunca o passado; o motivo vai para dados.motivo do evento "remarcado".
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite, V1 a V4 e V8, profissional_indisponivel
+     * @throws QueryException 23P01 (horario ocupado), 40P01/40001 esgotados
+     */
+    public function remarcarPeloOperador(string $codigo, User $operador, string $data, string $hora, ?string $motivoEncaixe = null): Agendamento
+    {
+        $motivo = self::texto($motivoEncaixe);
+
+        return $this->alterar(Ator::Operador, $operador, function () use ($codigo, $data, $hora, $motivo) {
+            $agendamento = $this->localizar($codigo, null, travar: true);
+            $this->exigirEstado($agendamento, EstadoAgendamento::Solicitado, EstadoAgendamento::Confirmado);
+            $estabelecimento = Estabelecimento::atual() ?? throw ReservaRecusada::por('agenda_indisponivel');
+
+            return $this->remarcar($agendamento, $estabelecimento, $data, $hora, encaixe: $motivo !== null);
+        }, $motivo);
+    }
+
+    /**
+     * Solicitado -> confirmado, pelo operador.
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite
+     */
+    public function confirmar(string $codigo, User $operador): Agendamento
+    {
+        return $this->alterar(Ator::Operador, $operador, function () use ($codigo) {
+            $agendamento = $this->localizar($codigo, null, travar: true);
+            if (! $agendamento->estado->podeIrPara(EstadoAgendamento::Confirmado)) {
+                throw ReservaRecusada::por('estado_nao_permite');
+            }
+            $agendamento->forceFill(['estado' => EstadoAgendamento::Confirmado])->save();
+
+            return (int) $agendamento->getKey();
+        });
+    }
+
+    /**
+     * A transacao inteira (a closure devolve o id) e repetida em 40P01/40001;
+     * o resultado e relido fora dela.
+     *
+     * @param  Closure(): int  $fn
+     */
+    private function alterar(Ator $ator, ?User $operador, Closure $fn, ?string $motivo = null): Agendamento
+    {
+        $id = $this->repetir->executar(fn () => TransacaoAuditada::executar($ator, $operador, $fn, $motivo));
+
+        return $this->carregar(Agendamento::query()->whereKey($id)->firstOrFail());
+    }
+
+    /**
+     * Uma consulta: codigo publico (e, para o cliente, o telefone dono da
+     * reserva). Qualquer falha e a mesma recusa. Cliente anonimizado (telefone
+     * nulo) nunca confere. O formato uuid e conferido antes: o PostgreSQL
+     * responderia 22P02 (500) a um texto qualquer.
+     */
+    private function localizar(string $codigo, ?string $telefone, bool $travar): Agendamento
+    {
+        $naoEncontrada = ReservaRecusada::por('reserva_nao_encontrada');
+        if (! Str::isUuid($codigo)) {
+            throw $naoEncontrada;
+        }
+
+        $consulta = Agendamento::query()->where('codigo_publico', $codigo);
+        if ($telefone !== null) {
+            $normalizado = Telefone::normalizar($telefone) ?? throw $naoEncontrada;
+            $consulta->whereHas('cliente', fn ($cliente) => $cliente->where('telefone', $normalizado));
+        }
+        if ($travar) {
+            $consulta->lockForUpdate();
+        }
+
+        return $consulta->first() ?? throw $naoEncontrada;
+    }
+
+    private function exigirEstado(Agendamento $agendamento, EstadoAgendamento ...$permitidos): void
+    {
+        if (! in_array($agendamento->estado, $permitidos, true)) {
+            throw ReservaRecusada::por('estado_nao_permite');
+        }
+    }
+
+    /** Prazo do site: o horario atual precisa estar a pelo menos a antecedencia minima (igual passa). */
+    private function exigirPrazo(Agendamento $agendamento, Estabelecimento $estabelecimento): void
+    {
+        $limite = CarbonImmutable::now()->addMinutes($estabelecimento->antecedencia_minima_minutos);
+        if ($agendamento->inicio_servico->lt($limite)) {
+            throw ReservaRecusada::por('fora_do_prazo');
+        }
+    }
+
+    private function cancelar(Agendamento $agendamento, ?string $motivo): int
+    {
+        $agendamento->forceFill([
+            'estado' => EstadoAgendamento::Cancelado,
+            'cancelado_em' => CarbonImmutable::now(),
+            'motivo_cancelamento' => $motivo,
+        ])->save();
+
+        return (int) $agendamento->getKey();
+    }
+
+    /**
+     * Novo horario da reserva existente: V1 a V4, V6 (profissional ativo e
+     * vinculado a cada servico dos itens; o servico em si pode ter sido
+     * desativado) e V8, com duracoes, precos e deslocamento do SNAPSHOT.
+     * Um UPDATE; a ocupacao acompanha pelo ON UPDATE CASCADE e o conflito
+     * (23P01) sobe como QueryException.
+     */
+    private function remarcar(Agendamento $agendamento, Estabelecimento $estabelecimento, string $data, string $hora, bool $encaixe): int
+    {
+        $fuso = $estabelecimento->fuso_horario;
+        $grade = $estabelecimento->grade_minutos;
+        $agora = CarbonImmutable::now();
+
+        $inicio = CalculoDeReserva::instante($data, $hora, $fuso, $grade);
+        CalculoDeReserva::exigirAntecedencia($inicio, $agora, $encaixe ? 0 : $estabelecimento->antecedencia_minima_minutos);
+        CalculoDeReserva::exigirHorizonte($data, $agora, $fuso, $estabelecimento->horizonte_dias);
+
+        $itens = AgendamentoItem::query()->where('agendamento_id', $agendamento->getKey())->orderBy('ordem')->get();
+        $servicoIds = $itens->pluck('servico_id')->map(fn ($id) => (int) $id)->all();
+
+        // V6, na ordem do catalogo (profissional, vinculos), com FOR SHARE.
+        $profissional = Profissional::query()->whereKey($agendamento->profissional_id)->sharedLock()->first();
+        $vinculados = DB::table('profissional_servico')
+            ->where('profissional_id', $agendamento->profissional_id)
+            ->whereIn('servico_id', $servicoIds)
+            ->orderBy('servico_id')
+            ->sharedLock()
+            ->pluck('servico_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+        if ($profissional === null || ! $profissional->ativo || array_diff($servicoIds, $vinculados) !== []) {
+            throw ReservaRecusada::por('profissional_indisponivel');
+        }
+
+        $regiao = $agendamento->modalidade === Modalidade::Domicilio
+            ? new SnapshotRegiao(
+                (int) $agendamento->regiao_id,
+                (string) $agendamento->regiao_nome,
+                $agendamento->deslocamento_minutos,
+                $agendamento->taxa_deslocamento_centavos,
+            )
+            : null;
+        $reserva = CalculoDeReserva::calcular(
+            $inicio,
+            $fuso,
+            $grade,
+            $itens->map(fn (AgendamentoItem $i) => new SnapshotServico(
+                $i->servico_id, $i->servico_nome, $i->preco_centavos, $i->duracao_minutos, $i->conta_como_corte,
+            ))->all(),
+            $regiao,
+        );
+
+        if (! $encaixe) {
+            $this->exigirExpediente((int) $agendamento->profissional_id, $data, $fuso, $reserva);
+        }
+
+        $agendamento->forceFill([
+            'inicio_servico' => $reserva->inicioServico,
+            'fim_servico' => $reserva->fimServico,
+            'inicio_ocupado' => $reserva->inicioOcupado,
+            'fim_ocupado' => $reserva->fimOcupado,
+        ])->save();
+
+        return (int) $agendamento->getKey();
+    }
+
+    /** Texto livre do operador: espacos normalizados, vazio vira nulo, no maximo 300 (o limite do banco). */
+    private static function texto(?string $valor): ?string
+    {
+        $limpo = trim((string) preg_replace('/\s+/u', ' ', (string) $valor));
+
+        return $limpo === '' ? null : mb_substr($limpo, 0, 300);
+    }
+
     private function carregar(Agendamento $agendamento): Agendamento
     {
         return $agendamento->load(['itens', 'profissional']);
@@ -173,25 +435,31 @@ final class ReservarHorario
         $reserva = CalculoDeReserva::calcular($inicio, $fuso, $grade, $catalogo->servicos, $catalogo->regiao);
 
         if (! $encaixe) {
-            $janelas = JanelasDeExpediente::doDia(
-                $pedido->data,
-                $fuso,
-                ExpedienteSemanal::query()->where('profissional_id', $pedido->profissionalId)->get()
-                    ->map(fn (ExpedienteSemanal $e) => [
-                        'dia_semana' => $e->dia_semana, 'hora_inicio' => $e->hora_inicio, 'hora_fim' => $e->hora_fim,
-                    ])->all(),
-                ExcecaoExpediente::query()->where('profissional_id', $pedido->profissionalId)
-                    ->where('data', $pedido->data)->get()
-                    ->map(fn (ExcecaoExpediente $e) => [
-                        'data' => $e->data->format('Y-m-d'), 'hora_inicio' => $e->hora_inicio, 'hora_fim' => $e->hora_fim,
-                    ])->all(),
-            );
-            if (! JanelasDeExpediente::cabe($reserva->inicioOcupado, $reserva->fimOcupado, $janelas)) {
-                throw ReservaRecusada::por('fora_do_expediente');
-            }
+            $this->exigirExpediente($pedido->profissionalId, $pedido->data, $fuso, $reserva);
         }
 
         return ['estabelecimento' => $estabelecimento, 'reserva' => $reserva, 'catalogo' => $catalogo];
+    }
+
+    /** V8: o periodo ocupado cabe inteiro em UMA janela de expediente do profissional. */
+    private function exigirExpediente(int $profissionalId, string $data, string $fuso, ReservaCalculada $reserva): void
+    {
+        $janelas = JanelasDeExpediente::doDia(
+            $data,
+            $fuso,
+            ExpedienteSemanal::query()->where('profissional_id', $profissionalId)->get()
+                ->map(fn (ExpedienteSemanal $e) => [
+                    'dia_semana' => $e->dia_semana, 'hora_inicio' => $e->hora_inicio, 'hora_fim' => $e->hora_fim,
+                ])->all(),
+            ExcecaoExpediente::query()->where('profissional_id', $profissionalId)
+                ->where('data', $data)->get()
+                ->map(fn (ExcecaoExpediente $e) => [
+                    'data' => $e->data->format('Y-m-d'), 'hora_inicio' => $e->hora_inicio, 'hora_fim' => $e->hora_fim,
+                ])->all(),
+        );
+        if (! JanelasDeExpediente::cabe($reserva->inicioOcupado, $reserva->fimOcupado, $janelas)) {
+            throw ReservaRecusada::por('fora_do_expediente');
+        }
     }
 
     /** Dentro da transacao auditada: revalida, cliente, endereco, agendamento e itens. */
