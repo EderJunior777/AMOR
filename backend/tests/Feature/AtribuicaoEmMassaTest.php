@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Agendamento;
+use App\Models\BloqueioAgenda;
+use App\Models\EnderecoCliente;
 use App\Models\Estabelecimento;
 use App\Models\User;
 use Illuminate\Database\Eloquent\MassAssignmentException;
@@ -51,7 +53,10 @@ class AtribuicaoEmMassaTest extends TestCase
             'agendamento.taxa' => [Agendamento::class, 'taxa_deslocamento_centavos', 1],
             'agendamento.inicio_servico' => [Agendamento::class, 'inicio_servico', '2026-10-01 03:00:00'],
             'estabelecimento.dados_demonstracao' => [Estabelecimento::class, 'dados_demonstracao', true],
-        ];
+            'bloqueio.cancelado_em' => [BloqueioAgenda::class, 'cancelado_em', '2026-10-01 10:00:00'],
+            'bloqueio.criado_por_user_id' => [BloqueioAgenda::class, 'criado_por_user_id', 1],
+            'endereco.cliente_id' => [EnderecoCliente::class, 'cliente_id', 1],
+            'endereco.arquivado_em' => [EnderecoCliente::class, 'arquivado_em', '2026-10-01 10:00:00'],        ];
     }
 
     /** @param class-string<Model> $classe */

@@ -33,6 +33,16 @@ class Profissional extends Model
         return $this->hasMany(ExpedienteSemanal::class);
     }
 
+    public function excecoes(): HasMany
+    {
+        return $this->hasMany(ExcecaoExpediente::class);
+    }
+
+    public function bloqueios(): HasMany
+    {
+        return $this->hasMany(BloqueioAgenda::class);
+    }
+
     public function agendamentos(): HasMany
     {
         return $this->hasMany(Agendamento::class);
