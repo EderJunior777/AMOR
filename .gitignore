@@ -2,3 +2,10 @@ node_modules/
 .netlify/
 .DS_Store
 npm-debug.log*
+
+# Ferramentas locais de desenvolvimento (binarios do PostgreSQL, cluster
+# descartavel e credenciais geradas por scripts/postgres-local.ps1).
+.ferramentas/
+
+# Pacotes gerados para revisao externa.
+entregas/
