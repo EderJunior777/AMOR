@@ -95,6 +95,13 @@ trait DadosDeAgenda
         }
 
         foreach (array_values($itens) as $i => $item) {
+            // E1: item do site exige vinculo profissional x servico no banco.
+            if ($dados['origem'] === 'site') {
+                DB::table('profissional_servico')->insertOrIgnore([
+                    'profissional_id' => $dados['profissional_id'],
+                    'servico_id' => $item['servico_id'] ?? $this->servicoPadrao,
+                ]);
+            }
             DB::table('agendamento_itens')->insert($item + [
                 'agendamento_id' => $id,
                 'servico_id' => $this->servicoPadrao,

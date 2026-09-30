@@ -9,3 +9,10 @@ npm-debug.log*
 
 # Pacotes gerados para revisao externa.
 entregas/
+
+# Variaveis de ambiente reais, em qualquer pasta (frontend, backend...).
+# So o modelo sem segredo e versionado.
+.env
+.env.*
+!.env.example
+!.env.*.example

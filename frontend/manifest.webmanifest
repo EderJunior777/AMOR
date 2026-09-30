@@ -1,0 +1,28 @@
+{
+  "name": "Barbearia - Agendamento",
+  "short_name": "Barbearia",
+  "description": "Escolha o servico, marque o horario e confirme no WhatsApp.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0A0D",
+  "theme_color": "#0A0A0D",
+  "categories": ["lifestyle", "business"],
+  "icons": [
+    { "src": "assets/icone.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "assets/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Marcar horario",
+      "short_name": "Marcar",
+      "url": "./index.html#agendar",
+      "icons": [{ "src": "assets/icone-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

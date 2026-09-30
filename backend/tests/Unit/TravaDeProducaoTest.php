@@ -16,6 +16,7 @@ class TravaDeProducaoTest extends TestCase
         $config = new Repository([
             'app' => ['debug' => false, 'key' => 'base64:'.base64_encode(str_repeat('k', 32)), 'proxies_confiaveis' => ['10.0.0.0/8']],
             'session' => ['secure' => true],
+            'cleison' => ['api' => ['atras_de_proxy' => true]],
             'database' => [
                 'default' => 'pgsql',
                 'connections' => [
@@ -44,6 +45,20 @@ class TravaDeProducaoTest extends TestCase
         $this->addToAssertionCount(3);
     }
 
+    /**
+     * Achado #3 da Fase 5: API_ATRAS_DE_PROXY e obrigatoria em producao,
+     * true ou false, sem padrao. true exige TRUSTED_PROXIES (senao o IP de
+     * todo cliente e o do proxy e o limite por IP vira global, calado).
+     */
+    public function test_atras_de_proxy_declarado_sobe(): void
+    {
+        $this->verificar($this->configSegura(['cleison.api.atras_de_proxy' => true]));
+        $this->verificar($this->configSegura(['cleison.api.atras_de_proxy' => 'true']));
+        $this->verificar($this->configSegura(['cleison.api.atras_de_proxy' => false, 'app.proxies_confiaveis' => []]));
+        $this->verificar($this->configSegura(['cleison.api.atras_de_proxy' => 'FALSE', 'app.proxies_confiaveis' => []]));
+        $this->addToAssertionCount(4);
+    }
+
     /** @return array<string, array{array<string, mixed>, string}> */
     public static function configuracoesInseguras(): array
     {
@@ -65,6 +80,11 @@ class TravaDeProducaoTest extends TestCase
             'proxy /0 ipv4' => [['app.proxies_confiaveis' => ['0.0.0.0/0']], 'TRUSTED_PROXIES'],
             'proxy /0 ipv6' => [['app.proxies_confiaveis' => ['10.0.0.1', '::/0']], 'TRUSTED_PROXIES'],
             'proxy metade da internet' => [['app.proxies_confiaveis' => ['0.0.0.0/1', '128.0.0.0/1']], 'TRUSTED_PROXIES'],
+            'API_ATRAS_DE_PROXY ausente' => [['cleison.api.atras_de_proxy' => null], 'API_ATRAS_DE_PROXY'],
+            'API_ATRAS_DE_PROXY vazia' => [['cleison.api.atras_de_proxy' => ''], 'API_ATRAS_DE_PROXY'],
+            'API_ATRAS_DE_PROXY invalida' => [['cleison.api.atras_de_proxy' => 'talvez'], 'API_ATRAS_DE_PROXY'],
+            'API_ATRAS_DE_PROXY numerica' => [['cleison.api.atras_de_proxy' => '1'], 'API_ATRAS_DE_PROXY'],
+            'atras de proxy sem TRUSTED_PROXIES' => [['app.proxies_confiaveis' => []], 'API_ATRAS_DE_PROXY=true com TRUSTED_PROXIES vazio'],
         ];
     }
 

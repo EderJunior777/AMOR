@@ -112,6 +112,14 @@ V5 (inativo), V6 (sem vínculo) e 2.2 (preço vem do catálogo).
      cliente reenvia com a mesma chave e cai em 2.
 - **Limpeza:** uma rotina diária anula chave e hash (juntos) de
   agendamentos criados há mais de 7 dias. A anonimização também os anula.
+  Implementada na Fase 6: `cleison_limpar_idempotencia()` (SECURITY DEFINER
+  do dono, sem parâmetro: prazo e relógio do banco), chamada por
+  `ReservarHorario::limparIdempotencia` e pelo comando
+  `cleison:limpar-idempotencia` (todo dia às 03:45 de São Paulo). O trigger
+  de imutabilidade do encerrado ganhou uma exceção estreita, no padrão da
+  anonimização: só o dono, e só chave e hash indo a NULL juntos
+  (migration `2026_09_30_000400`). Depois da limpeza, repetir o pedido com
+  a mesma chave cria uma reserva nova (a janela de repetição é de 7 dias).
 
 ## 5. Transação e erros
 
@@ -139,6 +147,15 @@ Dentro da transação, em ordem:
 | `23505` da chave de idempotência | seção 4 |
 | outro `23xxx` | 422 genérico e log de erro: é sinal de bug no cálculo, porque o domínio já validou |
 | erro no COMMIT | chega como `PDOException` crua; o `ErroDeBanco` já trata as duas |
+
+Recusas acrescentadas depois da revisão de segurança da Fase 5 (só no canal
+site; `backend/README.md`, "Freios da reserva pelo site"):
+
+| Situação | Tratamento |
+|---|---|
+| O telefone já tem o máximo de reservas em aberto (`solicitado`/`confirmado`, início no futuro) | 422 `limite_de_reservas_em_aberto` |
+| Teto diário de reservas criadas pelo site atingido | 503 `indisponivel`, genérico (não diz que é um teto) |
+| Limite por telefone na criação (só reserva criada conta; o reenvio da mesma tentativa ainda recebe a reserva) | 429 `muitas_tentativas` + `Retry-After` |
 
 ## 6. Interface
 

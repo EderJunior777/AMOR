@@ -49,6 +49,25 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
+     * Fecha TODAS as conexoes ao destruir a aplicacao do teste. O Laravel so
+     * desconecta a conexao que o RefreshDatabase usou; a do dono (aberta pela
+     * trava acima) ficava viva ate o coletor de lixo do PHP, e a suite
+     * esgotava max_connections em picos (FATAL "remaining connection slots").
+     * Registrado depois do parent::setUp(), roda DEPOIS do rollback do
+     * RefreshDatabase.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->beforeApplicationDestroyed(function () {
+            foreach ($this->app['db']->getConnections() as $conexao) {
+                $conexao->disconnect();
+            }
+        });
+    }
+
+    /**
      * Unico caminho para os testes usarem o papel dono (TRUNCATE, ALTER
      * TABLE...): revalida o alvo na hora e so entao devolve a conexao.
      */

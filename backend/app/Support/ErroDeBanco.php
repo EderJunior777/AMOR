@@ -40,6 +40,8 @@ final class ErroDeBanco
         'agendamentos_transicao_estado' => 'Mudanca de estado nao permitida.',
         'agendamentos_encerrado_imutavel' => 'Atendimento encerrado nao pode ser alterado.',
         'agendamento_itens_encerrado_imutavel' => 'Atendimento encerrado nao pode ser alterado.',
+        'agendamentos_origem_imutavel' => 'A origem do agendamento nao pode ser alterada.',
+        'agendamento_itens_catalogo_no_site' => 'Um dos servicos escolhidos nao esta disponivel com este profissional.',
         'agendamentos_com_servico' => 'O agendamento precisa de pelo menos um servico.',
         'agendamentos_duracao_dos_itens' => 'A duracao dos servicos nao confere com o horario.',
         'agendamentos_domicilio_completo' => 'Atendimento em domicilio exige endereco e regiao.',
@@ -69,6 +71,9 @@ final class ErroDeBanco
         '23505' => 'Registro duplicado.',
         '23503' => 'Referencia invalida ou registro em uso.',
         '23001' => 'Registro em uso; nao pode ser removido.',
+        // Texto: byte invalido (NUL) ou maior que a coluna. Segunda camada da validacao.
+        '22021' => 'Texto com caractere nao permitido.',
+        '22001' => 'Texto maior que o permitido.',
     ];
 
     /** @var WeakMap<PDOException, string>|null */

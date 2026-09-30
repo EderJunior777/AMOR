@@ -59,4 +59,10 @@ class Agendamento extends Model
     {
         return $this->hasMany(AgendamentoItem::class)->orderBy('ordem');
     }
+
+    /** Historico somente leitura, gravado pelo banco. */
+    public function eventos(): HasMany
+    {
+        return $this->hasMany(AgendamentoEvento::class)->orderBy('id');
+    }
 }

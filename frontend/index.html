@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agendamento - Barbearia</title>
+<meta name="description" content="Escolha o servico, veja os horarios realmente livres e confirme no WhatsApp. Atendimento na barbearia e a domicilio.">
+<meta name="theme-color" content="#0A0A0D">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Agende seu corte">
+<meta property="og:description" content="Escolha o servico, marque o horario e confirme no WhatsApp.">
+<link rel="icon" href="assets/icone.svg" type="image/svg+xml">
+<link rel="icon" href="assets/icone-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="assets/icone-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Barbearia">
+<link rel="preload" href="assets/fontes/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fontes/instrument-serif.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fontes.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<div class="grao" aria-hidden="true"></div>
+
+<div id="aviso-local" class="aviso-local" hidden>
+  <strong>Modo demonstracao.</strong> A agenda compartilhada nao respondeu, entao os horarios
+  marcados aqui ficam so neste aparelho e nao bloqueiam outros clientes.
+</div>
+
+<!-- ============================================================== capa -->
+<header class="capa" id="topo">
+  <div class="capa-fundo" aria-hidden="true"></div>
+  <div class="capa-malha" aria-hidden="true"></div>
+  <div class="capa-luz" id="capa-luz" aria-hidden="true"></div>
+  <div class="capa-poste poste poste-vertical" aria-hidden="true"></div>
+
+  <div class="envelope">
+    <div class="capa-grade">
+
+      <div class="capa-texto">
+      <div class="revela" style="--atraso:.05s">
+        <span class="status">
+          <span class="pulso" id="status-ponto"></span>
+          <span id="status-aberto">Carregando horarios...</span>
+        </span>
+      </div>
+
+      <h1 class="revela" style="--atraso:.12s" id="capa-titulo">Barbearia</h1>
+
+      <p class="capa-slogan revela" style="--atraso:.2s" id="capa-slogan"></p>
+
+      <div class="capa-acoes revela" style="--atraso:.28s">
+        <a class="botao botao-ouro" href="#agendar">
+          <span>Marcar meu horario</span>
+          <span class="seta" aria-hidden="true">&rarr;</span>
+        </a>
+        <a class="botao" id="capa-zap" href="#" target="_blank" rel="noopener">
+          <span>Falar no WhatsApp</span>
+        </a>
+      </div>
+
+      <div class="capa-rodape revela" style="--atraso:.36s">
+        <div>
+          <b class="dado-forte" id="dado-horario">08h &ndash; 20h</b>
+          <span class="dado-fraco">Todos os dias</span>
+        </div>
+        <div>
+          <b class="dado-forte" id="dado-livres">&mdash;</b>
+          <span class="dado-fraco" id="dado-livres-rotulo">Livres hoje</span>
+        </div>
+        <div>
+          <b class="dado-forte" id="dado-domicilio">Sim</b>
+          <span class="dado-fraco">Atende em casa</span>
+        </div>
+      </div>
+      </div>
+
+      <aside class="cartao-proximos revela" id="cartao-proximos" style="--atraso:.44s" hidden>
+        <p class="rotulo">Proximos horarios</p>
+        <div class="proximos-lista" id="proximos-lista"></div>
+        <p class="proximos-nota">Toque num horario para comecar por esse dia.</p>
+      </aside>
+
+    </div>
+  </div>
+</header>
+
+<!-- ========================================================= destaques -->
+<section class="faixa">
+  <div class="envelope">
+    <div class="faixa-grade">
+
+      <article class="faixa-item revela">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>
+        </svg>
+        <div>
+          <h3>Ele vai ate voce</h3>
+          <p id="destaque-domicilio">Atendimento a domicilio sem sair de casa.</p>
+        </div>
+      </article>
+
+      <article class="faixa-item revela" style="--atraso:.08s">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>
+        </svg>
+        <div>
+          <h3>Sem horario batido</h3>
+          <p>A agenda e a mesma pra todo mundo. O que voce marcar some na hora pros outros.</p>
+        </div>
+      </article>
+
+      <article class="faixa-item revela" style="--atraso:.16s">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 20.5l1.8-5.2A8.5 8.5 0 1 1 21 11.5Z"/>
+        </svg>
+        <div>
+          <h3>Confirma no zap</h3>
+          <p>Termina de marcar e o WhatsApp abre com tudo escrito. Voce so aperta enviar.</p>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= agendamento -->
+<main>
+<section class="secao" id="agendar">
+  <div class="envelope">
+
+    <div class="secao-topo revela">
+      <span class="rotulo">Agendamento</span>
+      <h2>Escolha, marque<br>e confirme.</h2>
+      <p>Leva menos de um minuto. O horario fica reservado no seu nome assim que voce confirmar.</p>
+    </div>
+
+    <ol class="trilha">
+
+      <li class="passo ativo revela" id="passo-servico">
+        <div class="passo-cabeca">
+          <span class="passo-numero">1</span>
+          <h3>O servico</h3>
+          <span class="passo-dica" id="dica-servico"></span>
+        </div>
+        <div class="menu" id="lista-servicos"></div>
+      </li>
+
+      <li class="passo bloqueado" id="passo-local">
+        <div class="passo-cabeca">
+          <span class="passo-numero">2</span>
+          <h3>Onde vai ser</h3>
+        </div>
+        <div class="locais" id="lista-local"></div>
+
+        <label class="campo campo-regiao" id="campo-regiao-area" hidden>
+          <span>Qual regiao?</span>
+          <select id="campo-regiao" name="regiao"></select>
+          <small class="campo-nota" id="nota-regiao"></small>
+        </label>
+      </li>
+
+      <li class="passo bloqueado" id="passo-dia">
+        <div class="passo-cabeca">
+          <span class="passo-numero">3</span>
+          <h3>O dia</h3>
+          <span class="passo-dica">Role para o lado</span>
+        </div>
+        <div class="dias-caixa">
+          <div class="dias" id="lista-dias"></div>
+        </div>
+      </li>
+
+      <li class="passo bloqueado" id="passo-hora">
+        <div class="passo-cabeca">
+          <span class="passo-numero">4</span>
+          <h3>A hora</h3>
+          <span class="passo-dica" id="ajuda-hora"></span>
+        </div>
+        <div id="lista-horas"></div>
+      </li>
+
+      <li class="passo bloqueado" id="passo-dados">
+        <div class="passo-cabeca">
+          <span class="passo-numero">5</span>
+          <h3>Seus dados</h3>
+          <span class="passo-dica">So pra te achar</span>
+        </div>
+
+        <form id="form-dados" novalidate>
+          <div id="cartao-memoria" class="cartao-memoria" hidden>
+            <span class="etiqueta etiqueta-ouro">Bom te ver de novo</span>
+            <p id="memoria-texto"></p>
+            <div class="memoria-acoes">
+              <button type="button" class="botao botao-ouro botao-pequeno" id="btn-repetir-corte">
+                <span>Repetir esse corte</span>
+              </button>
+              <button type="button" class="botao botao-pequeno" id="btn-esquecer">
+                <span>Nao sou eu</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="campos">
+            <label class="campo">
+              <span>Nome</span>
+              <input type="text" id="campo-nome" name="nome" autocomplete="name" placeholder="Como o barbeiro te chama" maxlength="80" required>
+            </label>
+
+            <label class="campo">
+              <span>WhatsApp</span>
+              <input type="tel" id="campo-telefone" name="telefone" autocomplete="tel" placeholder="(11) 98765-4321" maxlength="20" required>
+            </label>
+
+            <label class="campo campo-largo" id="campo-endereco-area" hidden>
+              <span>Endereco do atendimento</span>
+              <input type="text" id="campo-endereco" name="endereco" autocomplete="street-address" placeholder="Rua, numero, bairro e complemento" maxlength="200">
+            </label>
+
+            <label class="campo campo-largo">
+              <span>Observacao <em>(opcional)</em></span>
+              <input type="text" id="campo-obs" name="observacao" placeholder="Ex: maquina 2 dos lados" maxlength="300">
+            </label>
+          </div>
+
+          <div class="codigo-caixa" id="recuperar-caixa" hidden>
+            <p class="campo-nota" id="recuperar-texto">
+              Ja cortou aqui? Da pra puxar seus dados do ultimo corte.
+            </p>
+            <button type="button" class="botao botao-pequeno" id="btn-pedir-codigo">
+              <span>Recuperar meus dados</span>
+            </button>
+
+            <div id="codigo-passo" hidden>
+              <p class="campo-nota" id="codigo-aviso"></p>
+              <div class="codigo-campos" id="codigo-campos">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 1">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 2">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 3">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 4">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 5">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 6">
+              </div>
+              <button type="button" class="botao botao-ouro botao-pequeno" id="btn-confirmar-codigo">
+                <span>Confirmar codigo</span>
+              </button>
+            </div>
+
+            <p class="erro" id="erro-codigo" hidden></p>
+          </div>
+
+          <div class="comanda" id="resumo"></div>
+
+          <p class="erro" id="erro-form" hidden></p>
+
+          <button class="botao botao-ouro botao-largo" type="submit" id="botao-confirmar" style="margin-top:1.3rem">
+            <span>Confirmar e ir para o WhatsApp</span>
+            <span class="seta" aria-hidden="true">&rarr;</span>
+          </button>
+
+          <p class="sob-botao">Voce ainda vai poder conversar com o barbeiro antes de fechar.</p>
+        </form>
+      </li>
+
+    </ol>
+  </div>
+</section>
+
+<!-- ====================================================== minha reserva -->
+<!-- So com a agenda nova ligada (CONFIG.agendaNova, SO HOMOLOGACAO). -->
+<section class="secao" id="minha-reserva" hidden style="padding-top:0">
+  <div class="envelope">
+    <span class="rotulo">Minha reserva</span>
+    <h2>Consultar, cancelar ou remarcar</h2>
+    <p class="campo-nota">Use o codigo que apareceu quando voce reservou e o mesmo telefone.</p>
+
+    <div class="campos">
+      <label class="campo campo-largo">
+        <span>Codigo da reserva</span>
+        <input type="text" id="minha-codigo" autocomplete="off" spellcheck="false" maxlength="100">
+      </label>
+      <label class="campo">
+        <span>WhatsApp</span>
+        <input type="tel" id="minha-telefone" autocomplete="tel" placeholder="(11) 98765-4321" maxlength="20">
+      </label>
+      <label class="campo">
+        <span>Novo dia <em>(para remarcar)</em></span>
+        <input type="date" id="minha-data">
+      </label>
+      <label class="campo">
+        <span>Novo horario <em>(para remarcar)</em></span>
+        <input type="time" id="minha-hora" step="1800">
+      </label>
+    </div>
+
+    <div class="memoria-acoes">
+      <button type="button" class="botao botao-pequeno" id="btn-minha-consultar"><span>Consultar</span></button>
+      <button type="button" class="botao botao-pequeno" id="btn-minha-remarcar"><span>Remarcar</span></button>
+      <button type="button" class="botao botao-pequeno" id="btn-minha-cancelar"><span>Cancelar reserva</span></button>
+    </div>
+
+    <p class="erro" id="minha-erro" hidden></p>
+    <p class="campo-nota" id="minha-aviso"></p>
+    <div class="recibo-dados" id="minha-detalhe"></div>
+  </div>
+</section>
+
+<!-- ========================================================== domicilio -->
+<section class="secao" id="domicilio-secao" style="padding-top:0">
+  <div class="envelope">
+    <div class="domicilio revela">
+      <div class="domicilio-grade">
+        <div>
+          <span class="rotulo">A domicilio</span>
+          <h2>O barbeiro<br>na sua sala.</h2>
+          <p id="texto-domicilio">
+            Ele leva a maquina, a tesoura e a toalha. Voce escolhe "em casa" na hora de
+            marcar, poe o endereco e o resto e igual: mesmo horario reservado, mesma
+            agenda, sem risco de aparecer alguem em cima.
+          </p>
+        </div>
+        <div class="domicilio-preco">
+          <b id="valor-domicilio">+ R$ 20</b>
+          <span>Taxa de deslocamento</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ============================================================= rodape -->
+<footer class="rodape">
+  <div class="envelope">
+    <div class="rodape-grade">
+      <div>
+        <h3 id="rodape-nome">Barbearia</h3>
+        <div class="poste poste-fino" style="max-width:120px;margin:.8rem 0 1rem" aria-hidden="true"></div>
+        <p id="rodape-slogan"></p>
+      </div>
+
+      <div>
+        <p class="rodape-titulo">Onde</p>
+        <p id="rodape-endereco"></p>
+      </div>
+
+      <div>
+        <p class="rodape-titulo">Contato</p>
+        <p><a id="rodape-zap" href="#" target="_blank" rel="noopener">Chamar no WhatsApp</a></p>
+        <p><a id="rodape-insta" href="#" target="_blank" rel="noopener" hidden></a></p>
+      </div>
+    </div>
+
+    <div class="rodape-fim">
+      <span id="rodape-horario">Todos os dias, das 08h as 20h</span>
+      <a href="agenda.html">Area do barbeiro</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ======================================================== barra fixa -->
+<div class="barra" id="barra-resumo">
+  <div class="barra-texto">
+    <b class="barra-nome" id="barra-nome"></b>
+    <span class="barra-sub" id="barra-sub"></span>
+  </div>
+  <button class="botao botao-ouro" type="button" id="barra-botao">
+    <span id="barra-acao">Continuar</span>
+  </button>
+</div>
+
+<!-- =========================================================== sucesso -->
+<div class="sucesso" id="tela-sucesso" hidden>
+  <div class="recibo">
+    <div class="recibo-poste poste poste-fino" aria-hidden="true"></div>
+
+    <div class="selo">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12.5 10 17.5 19.5 7"/>
+      </svg>
+    </div>
+
+    <h2>Horario reservado</h2>
+    <p class="recibo-sub">Guardamos no seu nome. Agora e so confirmar com o barbeiro.</p>
+
+    <div class="recibo-dados" id="sucesso-detalhe"></div>
+
+    <a class="botao botao-zap botao-largo" id="link-zap" href="#" target="_blank" rel="noopener">
+      <span>Abrir o WhatsApp</span>
+      <span class="seta" aria-hidden="true">&rarr;</span>
+    </a>
+
+    <button class="botao botao-largo" type="button" id="botao-novo">
+      <span>Marcar outro horario</span>
+    </button>
+
+    <p class="recibo-nota">Se o WhatsApp nao abrir sozinho, toque no botao verde.</p>
+  </div>
+</div>
+
+<script src="assets/config.js"></script>
+<script src="assets/agenda-v1.js"></script>
+<script src="assets/app.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>

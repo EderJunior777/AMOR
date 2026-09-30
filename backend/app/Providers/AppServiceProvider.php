@@ -7,7 +7,9 @@ use App\Console\Protegidos\RefreshProtegido;
 use App\Console\Protegidos\ResetProtegido;
 use App\Console\Protegidos\RollbackProtegido;
 use App\Console\Protegidos\WipeProtegido;
+use App\Support\ChaveDeLimite;
 use App\Support\TravaDeProducao;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Console\Migrations\FreshCommand;
 use Illuminate\Database\Console\Migrations\RefreshCommand;
 use Illuminate\Database\Console\Migrations\ResetCommand;
@@ -15,7 +17,9 @@ use Illuminate\Database\Console\Migrations\RollbackCommand;
 use Illuminate\Database\Console\WipeCommand;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Middleware\TrustProxies;
+use Illuminate\Http\Request;
 use Illuminate\Support\Env;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -51,5 +55,47 @@ class AppServiceProvider extends ServiceProvider
         if ($proxies !== []) {
             TrustProxies::at($proxies);
         }
+
+        $this->limitesDaApi();
+    }
+
+    /**
+     * Limites da API publica v1 (valores em config cleison.api.limites, lidos a
+     * cada requisicao). Todos por IP, e reserva existente tambem por IP +
+     * codigo. Rodam antes da validacao: tentativa invalida conta por IP.
+     * O limite por TELEFONE da criacao nao mora aqui (achado #2): fica no
+     * ReservaController, depois da validacao, e so reserva criada conta.
+     */
+    private function limitesDaApi(): void
+    {
+        $limite = fn (string $nome): int => (int) config("cleison.api.limites.{$nome}");
+        // cleison.api.limites_por_ip = false: IP nao confiavel; ficam os limites
+        // por telefone e por codigo e, em toda rota, um global alto por rota
+        // (achado #3: catalogo e disponibilidade nunca ficam sem freio).
+        $porIp = fn (): bool => (bool) config('cleison.api.limites_por_ip', true);
+
+        RateLimiter::for('api-geral', fn (Request $request) => $porIp()
+            ? Limit::perMinute($limite('geral_por_minuto'))->by(ChaveDeLimite::de('geral', (string) $request->ip()))
+            : Limit::perMinute($limite('global_por_minuto_por_rota'))
+                ->by(ChaveDeLimite::de('global-rota', $request->method(), (string) ($request->route()?->uri() ?? $request->path()))));
+
+        RateLimiter::for('api-criar-reserva', fn (Request $request) => $porIp()
+            ? Limit::perMinute($limite('criar_por_minuto_ip'))->by(ChaveDeLimite::de('criar-ip', (string) $request->ip()))
+            : Limit::none());
+
+        RateLimiter::for('api-reserva-existente', function (Request $request) use ($limite, $porIp) {
+            $codigo = $request->input('codigo');
+            $codigo = is_string($codigo) ? strtolower(trim($codigo)) : '';
+            $ip = (string) $request->ip();
+
+            if (! $porIp()) {
+                return Limit::perMinute($limite('reserva_por_minuto_ip_codigo'))->by(ChaveDeLimite::de('reserva-codigo', $codigo));
+            }
+
+            return [
+                Limit::perMinute($limite('reserva_por_minuto_ip_codigo'))->by(ChaveDeLimite::de('reserva-ip-codigo', $ip, $codigo)),
+                Limit::perHour($limite('reserva_por_hora_ip'))->by(ChaveDeLimite::de('reserva-ip', $ip)),
+            ];
+        });
     }
 }

@@ -25,4 +25,9 @@ class Cliente extends Model
     {
         return $this->hasMany(Agendamento::class);
     }
+
+    public function enderecos(): HasMany
+    {
+        return $this->hasMany(EnderecoCliente::class);
+    }
 }

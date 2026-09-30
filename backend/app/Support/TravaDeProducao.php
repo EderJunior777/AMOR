@@ -91,7 +91,29 @@ final class TravaDeProducao
             $problemas[] = 'TRUSTED_PROXIES com curinga ou faixa ampla demais (liste os IPs/CIDR do proxy)';
         }
 
+        // Achado #3: declarar se ha proxy na frente e obrigatorio. Atras de
+        // proxy sem TRUSTED_PROXIES, todo cliente teria o IP do proxy.
+        $atrasDeProxy = self::booleanoDeclarado($config->get('cleison.api.atras_de_proxy'));
+        if ($atrasDeProxy === null) {
+            $problemas[] = 'API_ATRAS_DE_PROXY ausente ou invalida (defina true ou false)';
+        } elseif ($atrasDeProxy && array_filter($proxies, fn ($p) => is_string($p) && trim($p) !== '') === []) {
+            $problemas[] = 'API_ATRAS_DE_PROXY=true com TRUSTED_PROXIES vazio (liste os IPs/CIDR do proxy)';
+        }
+
         return $problemas;
+    }
+
+    /** true/false (booleano, ou o texto "true"/"false" em qualquer caixa); qualquer outra coisa e nulo. */
+    private static function booleanoDeclarado(mixed $valor): ?bool
+    {
+        if (is_bool($valor)) {
+            return $valor;
+        }
+        if (is_string($valor) && in_array(strtolower(trim($valor)), ['true', 'false'], true)) {
+            return strtolower(trim($valor)) === 'true';
+        }
+
+        return null;
     }
 
     /**

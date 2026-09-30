@@ -1,8 +1,9 @@
 # Arquitetura — CLEISON
 
-> Estado: **etapa 1 (fundação PHP/SQL), revisada**. Não é um sistema
-> concluído: não há API de negócio, login, painel nem integração com o site.
-> O site em produção continua sendo o original (Netlify).
+> Estado: **etapa 2 (agenda integrada, API v1), em revisão**. API pública
+> implementada com domínio `ReservarHorario`, freios de reserva e integração do
+> site (desligada, homologação). Sem login, painel, MFA nem HTTP de confirmação
+> ainda (etapa 3). O site em produção continua sendo o original (Netlify).
 
 ## 1. Estrutura do repositório
 
@@ -92,7 +93,7 @@ Migration: `backend/database/migrations/2026_09_24_000300_criar_clientes_e_agend
     `40P01` — nenhum gravou nada. A exclusão sozinha já impede reserva dupla.
 - **Papel da aplicação não consegue desligar nada disso** (seção 6).
 
-### Contrato para a API da etapa 2 (planejado, não implementado)
+### Contrato para a API da etapa 2 (implementado, etapa 2 Fases 1–5)
 
 - Transação por reserva: agendamento + itens; itens conferidos no COMMIT.
 - `23P01` → HTTP 409 "horário ocupado". `40P01`/`40001` → repetir (até 3×).
@@ -178,10 +179,11 @@ proprietário tudo.
 | Dinheiro ≥ 0 em centavos, durações > 0, intervalos válidos e finitos | CHECK | **Implementado e testado** |
 | Referências válidas, histórico não apagável | FK `RESTRICT` | **Implementado e testado** |
 | Papel de runtime sem DDL | Privilégios do PostgreSQL | **Implementado e testado** (cluster local) |
-| Data real, passado, antecedência, horizonte, expediente, grade | Aplicação (etapa 2) | **Planejado** |
-| Profissional/serviço/região ativos e habilitados | Aplicação (etapa 2) | **Planejado** |
-| Idempotência (mesma chave + mesmo corpo = mesma reserva) | Colunas + UNIQUE prontos; lógica na etapa 2 | **Parcial** |
-| Login, MFA, autorização, CSRF, rate limit | Etapa 3 | **Planejado** |
+| Data real, passado, antecedência, horizonte, expediente, grade | Aplicação (domínio `ReservarHorario`, V1–V8; catálogo no banco, migration `2026_09_30_000100`) | **Implementado e testado** |
+| Profissional/serviço/região ativos e habilitados | Aplicação (domínio, revalidação na transação `FOR SHARE`) | **Implementado e testado** |
+| Idempotência (mesma chave + mesmo corpo = mesma reserva) | UNIQUE + `ReservarHorario`; limpeza diária após 7 dias (`cleison_limpar_idempotencia`) | **Implementado e testado** (etapa 2) |
+| Login, MFA, autorização, CSRF | Etapa 3 | **Planejado** |
+| Rate limit (API pública) | Etapa 2 (por IP/telefone/código/rota) | **Implementado e testado** |
 
 ## 8. Como a concorrência é testada
 
@@ -208,6 +210,11 @@ centralizada em `App\Support\ErroDeBanco`:
 | 23514, 23505, 23503, 23001 | 422 | Violação de constraint (CHECK, UNIQUE, FK) |
 | 40P01, 40001 | 503 + `Retry-After: 1` | Deadlock ou serialização (repetir) |
 | outros | 500 | Erro interno ou bug SQL |
+
+Fora do banco, a API pública também responde 422 `ReservaRecusada` (código
+estável por regra, ex.: `limite_de_reservas_em_aberto`), 429
+`muitas_tentativas` e 503 `indisponivel` (teto diário do site). Contrato em
+`docs/ESPEC-RESERVA.md`, seção 5.
 
 Resposta HTTP padrão (sem revelar causa):
 ```json
@@ -265,6 +272,9 @@ altera dados pessoais de histórico encerrado. A aplicação a chama dentro de
 - Triggers de imutabilidade têm exceção estreita: permite UPDATE só para o dono
   da tabela, só das colunas de dado pessoal, com valores anonimizados. A
   exceção não passa por variável de sessão (que a aplicação pode alterar).
+  A limpeza da idempotência (etapa 2, Fase 6) tem a segunda e última
+  exceção no encerrado: dono, e só `chave_idempotencia` e `hash_requisicao`
+  indo a NULL juntos.
 - **Limite conhecido:** a checagem "só proprietário ativo" e o ator do
   histórico protegem contra bug e esquecimento, não contra o papel da
   aplicação comprometido. Esse papel tem DML em `users` (o

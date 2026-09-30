@@ -1,6 +1,7 @@
 # CLEISON: backend (Laravel + PostgreSQL)
 
-Etapa 1: fundação de dados. **Sem API de negócio, login ou painel ainda.**
+Etapa 2: agenda integrada. **API pública v1 implementada** (`/api/v1/*`, domínio
+`ReservarHorario`). Sem painel, login, MFA nem confirmação HTTP ainda (etapa 3).
 Arquitetura e decisões: [`../docs/ARQUITETURA.md`](../docs/ARQUITETURA.md).
 Relatório da revisão: [`../docs/REVISAO-ETAPA-1.md`](../docs/REVISAO-ETAPA-1.md).
 
@@ -144,6 +145,10 @@ vendor/bin/pint --test                         # estilo
   profissional de propósito e espera o PostgreSQL detectar deadlocks
   (`deadlock_timeout` = 1 s). Para ver o resumo desse caso:
   `CLEISON_RELATORIO_CONCORRENCIA=1 vendor/bin/phpunit --filter ConcorrenciaTest`.
+- Etapa 2: domínio da reserva em `tests/Feature/Agenda/` (validações, idempotência,
+  consulta/cancelamento/remarcação, expiração de `solicitado`, máximo em aberto,
+  concorrência com COMMIT real) e API HTTP em `tests/Feature/Api/` (contrato, erros,
+  limites por IP/telefone/código/rota, teto diário).
 
 ## PostgreSQL local: travamento e recuperação responsável
 
@@ -220,7 +225,9 @@ houver:
   `require`/`verify-ca`/`verify-full` (a `DB_URL` também é lida);
 - senha do papel dono presente, no config (inclusive via `DB_MIGRACAO_URL`)
   ou no ambiente do processo;
-- `TRUSTED_PROXIES` com curinga ou faixa ampla demais (`/0`, ou IPv4 mais largo que `/8`).
+- `TRUSTED_PROXIES` com curinga ou faixa ampla demais (`/0`, ou IPv4 mais largo que `/8`);
+- `API_ATRAS_DE_PROXY` ausente ou diferente de `true`/`false` (é obrigatória,
+  sem padrão), ou `true` com `TRUSTED_PROXIES` vazio.
 
 **Onde a trava vale:** em processos que **atendem HTTP**, ou seja,
 requisições web e os comandos `artisan serve`/`octane:*`. Os demais
@@ -237,6 +244,50 @@ A distinção é feita por `runningInConsole()` e pelo nome do comando
 `X-Forwarded-For` e `X-Forwarded-Proto`. Vazio significa nenhum proxy
 confiável: o IP e o esquema vêm da própria conexão. Curinga (`*`) é
 recusado em produção.
+
+#### Atrás da Netlify (site chamando `/api/*` na mesma origem)
+
+Com o proxy `/api/*` da Netlify, **toda** requisição chega ao backend com o
+IP da Netlify. Sem `TRUSTED_PROXIES`, os limites da API por IP
+(`API_LIMITE_GERAL_POR_MINUTO`, `API_LIMITE_CRIAR_POR_MINUTO_IP`,
+`API_LIMITE_RESERVA_POR_*`) valeriam para todos os clientes juntos: um único
+abusador bloquearia o site inteiro.
+
+Por isso **`API_ATRAS_DE_PROXY` é obrigatória em produção** (`true` ou
+`false`, sem padrão), e a trava de boot recusa subir sem ela ou com
+`API_ATRAS_DE_PROXY=true` e `TRUSTED_PROXIES` vazio:
+
+- **Atrás de um proxy com IPs de saída conhecidos:** `API_ATRAS_DE_PROXY=true`
+  e `TRUSTED_PROXIES` só com esses endereços (nunca `*` nem faixa ampla). O
+  IP do cliente vem do `X-Forwarded-For` e cada cliente tem o próprio limite
+  (`LimitesPorIpAtrasDeProxyTest`).
+- **Cliente chegando direto:** `API_ATRAS_DE_PROXY=false`.
+
+**Atrás da Netlify, hoje, não há configuração correta: publicar a API atrás
+dela está BLOQUEADO até a etapa 6.** A Netlify **não publica uma lista fixa**
+de IPs de saída, então `TRUSTED_PROXIES` por IP é inviável, e a trava de
+boot recusa `API_ATRAS_DE_PROXY=true` sem ela. Declarar `false` atrás do
+proxy passaria na trava (ela confere a declaração, não a rede), mas seria
+falso: o limite por IP viraria um limite global calado. Alternativa a
+avaliar na etapa 6 (não implementada): o redirect `/api/*` da Netlify envia
+um **cabeçalho secreto** (`headers` no `[[redirects]]` do `netlify.toml`) e
+o backend só confia no `X-Forwarded-For` quando esse cabeçalho confere.
+Para a homologação local, use `frontend/testes/servidor-homologacao.mjs`.
+
+`API_LIMITE_POR_IP=false` continua existindo como interruptor para quando o
+IP não for confiável por outro motivo. Desligado, ficam o limite **por
+telefone** (criação), o **por código** (consultar/cancelar/remarcar) e, em
+toda rota, um **limite global alto por rota**
+(`API_LIMITE_GLOBAL_POR_MINUTO_POR_ROTA`, padrão 600/min, todos os clientes
+juntos), para que catálogo e disponibilidade nunca fiquem sem freio
+(`LimitesSemIpApiTest`). Configurar e conferir tudo isso é item da etapa 6
+(implantação).
+
+O limite **por telefone** da criação só conta reserva **criada**: fica no
+`ReservaController`, depois da validação. Recusa de formato ou de regra
+(422), horário ocupado (409) e repetição idempotente não consomem o limite
+de ninguém; quem sabe o telefone de alguém não esgota o limite dessa pessoa
+(`LimitesApiTest`). Por IP, toda tentativa conta, inclusive a inválida.
 
 ## Runbook: migração só para frente
 
@@ -358,6 +409,49 @@ Quando o prazo for decidido (responsável + jurídico):
 
 Ver `config/cleison.php` e `routes/console.php`.
 
+## Freios da reserva pelo site
+
+Respostas ao achado #1 da revisão de segurança da Fase 5 (reservas
+`solicitado` segurando horário sem prazo). Valores em `config/cleison.php`
+(`reservas`); inteiro inválido falha fechado.
+
+| Freio | Variável (padrão) | Comportamento |
+|---|---|---|
+| Expiração | `CLEISON_SOLICITADO_EXPIRA_HORAS` (12) | `solicitado` não confirmado vira `cancelado` depois de N horas da criação **ou** quando o início chega, o que vier primeiro. Ator `sistema`, motivo `expirado` no evento. Comando `cleison:expirar-solicitados`, agendado a cada 5 minutos, pelo domínio (`ReservarHorario::expirarSolicitados`), com a linha travada. |
+| Reservas em aberto por telefone | `CLEISON_MAXIMO_RESERVAS_EM_ABERTO_POR_TELEFONE` (2) | O site recusa (422 `limite_de_reservas_em_aberto`) quem já tem N reservas `solicitado`/`confirmado` com início no futuro, de qualquer canal. Contagem dentro da transação, com o cliente travado (`FOR UPDATE`): pedidos simultâneos do mesmo telefone entram em fila. O operador não tem esse limite. |
+| Teto diário do site | `CLEISON_TETO_DIARIO_RESERVAS_SITE` (500) | Freio de emergência: reservas **criadas** pelo site no dia (fuso do estabelecimento), somando todos os telefones. Acima disso, 503 genérico (`indisponivel`), sem dizer que é um teto, e um aviso no log só com o teto. Conta sem trava: sob disputa pode passar por algumas unidades. |
+
+**A expiração depende do scheduler:** `php artisan schedule:run` no cron a
+cada minuto. Se ele parar, nenhuma reserva `solicitado` expira e os
+horários ficam presos até alguém confirmar ou cancelar. A etapa 6 precisa
+de um **alerta** para quando o `schedule:run` parar (ex.: o comando grava
+um "último sinal" e o monitoramento avisa se ele envelhecer).
+
+**Pré-requisito para ligar a flag do site em produção (etapa 6):**
+verificação de posse do telefone por código (WhatsApp) **ou** captcha no
+pedido de reserva. Os freios acima limitam o estrago, mas não impedem que
+alguém reserve com telefones que não são seus. Nenhum serviço externo entra
+nesta etapa.
+
+## Achados baixos da revisão de segurança (Fase 5), sem ação
+
+Registrados para não se perderem; nenhum exige mudança agora.
+
+| # | Achado | Por que fica como está |
+|---|---|---|
+| 5 | Oráculo da chave de idempotência: uma chave usada com outro corpo responde `idempotencia_conflito`, o que confirma que a chave existe. | A chave tem 16+ caracteres aleatórios gerados no cliente: não é enumerável. Quem tem chave **e** corpo idênticos recebe a própria reserva. Opcional no futuro: escopar a chave por hash do telefone. |
+| 7 | Disponibilidade sem cache: cada chamada faz ~6 consultas (um dia, até 3 serviços). | Custo limitado por chamada e limitado por IP ou pelo global por rota. Opcional: cache curto (5 a 15 s) por chave da consulta. |
+| 8 | O limitador escreve na tabela `cache` do banco a cada requisição. | Com o volume atual, é aceitável. **Nota para a etapa 6:** se o volume crescer, mover o cache (e o limitador) para Redis. |
+| 9 | Diferença de tempo em `localizar`: uuid inválido não consulta o banco; uuid válido consulta. | Só distingue "não é uuid" de "é uuid"; o uuid v4 tem 122 bits aleatórios, então isso não ajuda ninguém a achar reserva. |
+
+Da revisão da Fase 7 e da revisão final, **riscos aceitos** (sem ação agora):
+
+| Risco | Por que fica |
+|---|---|
+| `limite_de_reservas_em_aberto` (422) revela a quem informa um telefone alheio que esse telefone já tem reservas em aberto, e esse alguém pode ocupar as vagas da vítima até a expiração (12 h). | Os limites por IP e por telefone freiam; a solução de fundo é a verificação do telefone (pré-requisito da flag em produção). |
+| O teto diário conta reservas criadas em qualquer estado; bots com muitos IPs podem esgotá-lo e o site fica em 503 genérico até o fim do dia. | É o freio de emergência por desenho. Monitorar o aviso `Teto diario de reservas do site atingido` no log. |
+| O limite por telefone é "confere e depois conta" (não atômico): rajadas simultâneas podem passar por algumas unidades. | É freio, não cota exata; o máximo de reservas em aberto (com trava) segura o que importa. |
+
 ## Saúde e rotas
 
 `GET /up` — confere que o banco está disponível. Resposta:
@@ -369,7 +463,8 @@ Implementação: [`app/Http/Controllers/SaudeController.php`](app/Http/Controlle
 Use para o health check do balanceador.
 
 `GET /` — responde 204 (sem corpo) quando a aplicação está pronta. Rotas públicas
-e de negócio não existem nesta etapa.
+de negócio em `/api/v1` (etapa 2): serviços, regiões, disponibilidade, reserva,
+consulta, cancelamento, remarcação. O painel administrativo é da etapa 3.
 
 ## Empacotar para revisão ou distribuição
 
@@ -445,14 +540,25 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    esses registros ficam lá, quem atende pedido de titular sobre eles
    (hoje, só manualmente) e, na migração para o backend, se são importados,
    anonimizados ou descartados.
-9. **Decisões da etapa 2 (especificação):** E1 a E5 em
+9. ~~Decisões da etapa 2 (E1 a E8)~~ **Decididas e implementadas** (E1 catálogo
+   válido no banco para o site; E2 encaixe do operador com motivo; E3 site não
+   altera nome; E4 até 3 serviços; E5 site nasce `solicitado`; E6 código +
+   telefone; E7 confirmação por comando; E8 flag desligada).
    [`docs/ESPEC-RESERVA.md`](../docs/ESPEC-RESERVA.md), seção 10.
-   - E1: Defesa em profundidade no banco para o canal site (validação de
-     serviço ativo e vínculo profissional_servico no trigger do INSERT)?
-   - E2: Operador pode encaixar fora do expediente ou da antecedência?
-   - E3: Site pode alterar nome de cliente já cadastrado?
-   - E4: Quantos serviços por reserva?
-   - E5: Estado inicial de reserva pelo site?
+10. **Proxy na frente da API (etapa 6).** Definir `API_ATRAS_DE_PROXY`
+    (obrigatória em produção; a trava recusa `true` com `TRUSTED_PROXIES`
+    vazio). Atrás da Netlify não há configuração correta hoje (sem lista
+    fixa de IPs): publicar a API atrás dela fica bloqueado até decidir o
+    item 13. Detalhes em "Proxies confiáveis > Atrás da Netlify".
+11. **Antes de ligar a flag do site em produção (etapa 6):** verificação do
+    telefone por código (WhatsApp) ou captcha no pedido de reserva
+    (pré-requisito, ver "Freios da reserva pelo site").
+12. **Cron do scheduler e alerta (etapa 6):** `php artisan schedule:run` a
+    cada minuto no servidor, com alerta se ele parar. Sem ele, reservas
+    `solicitado` não expiram.
+13. **Confiança no `X-Forwarded-For` atrás da Netlify (etapa 6):** lista
+    fixa de IPs é inviável; avaliar o cabeçalho secreto no redirect
+    `/api/*` (ver "Atrás da Netlify").
 
 ## Mapa
 
@@ -462,6 +568,7 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
 | `database/migrations/2026_09_29_000100_fechar_escrita_direta_na_agenda.php` | Exigência PostgreSQL >= 17; fecha INSERT/UPDATE/DELETE em `ocupacoes_agenda` e `agendamento_eventos` |
 | `database/migrations/2026_09_29_000200_fechar_sequencias_da_agenda.php` | Fecha sequências de ocupações e histórico |
 | `database/migrations/2026_09_29_000300_anonimizacao_de_clientes.php` | Tabela `anonimizacoes`, triggers de exceção à imutabilidade, função `cleison_anonimizar_cliente` |
+| `database/migrations/2026_09_30_000400_limpeza_da_idempotencia.php` | Função `cleison_limpar_idempotencia` e a exceção estreita da limpeza no encerrado |
 | `app/Enums/` | Estado do agendamento (contrato), origem, modalidade, papel, origem de anonimização |
 | `app/Models/` | Models do domínio usados pelo seed/testes |
 | `app/Support/Telefone.php` | Normalização para E.164 |
@@ -473,11 +580,24 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
 | `app/Console/Commands/CriarProprietario.php` | Bootstrap do primeiro proprietário |
 | `app/Console/Commands/AnonimizarCliente.php` | Comando `cleison:anonimizar-cliente`: pedido do titular (LGPD) com confirmação interativa |
 | `app/Console/Commands/AnonimizarInativos.php` | Comando `cleison:anonimizar-inativos`: retenção automática agendada (inerte até D5) |
+| `app/Console/Commands/ExpirarSolicitados.php` | Comando `cleison:expirar-solicitados`: expira reservas `solicitado` vencidas (a cada 5 minutos) |
+| `app/Console/Commands/LimparIdempotencia.php` | Comando `cleison:limpar-idempotencia`: anula chave e hash com mais de 7 dias (todo dia às 03:45) |
+| `app/Support/ChaveDeLimite.php` | Chave HMAC dos limites da API (nunca guarda telefone, código nem IP crus) |
+| `app/Domain/Agenda/AgendaSobrecarregada.php` | Teto diário de reservas do site atingido (503 genérico) |
 | `app/Http/Controllers/SaudeController.php` | `GET /up`: confere banco sem expor detalhe de conexão (503 se falhar) |
-| `config/cleison.php` | Configuração de retenção LGPD (prazo e responsável, sem padrão) |
-| `routes/console.php` | Agenda diária `cleison:anonimizar-inativos` às 03:30 de São Paulo |
+| `routes/api.php` | Rotas da API v1 (`/api/v1/*`): serviços, regiões, disponibilidade, reserva, consulta, cancelamento, remarcação |
+| `app/Http/Controllers/Api/` | `CatalogoController`, `DisponibilidadeController` e `ReservaController` (criação idempotente com o limite por telefone, consulta, cancelamento, remarcação) |
+| `app/Http/Requests/Api/*.php` | Validação só de formato (`ReservarRequest`, `DisponibilidadeRequest`, `ProfissionaisRequest`, `ReservaExistenteRequest`, `RemarcarRequest`); a regra comercial é do domínio |
+| `app/Http/Resources/` | Respostas JSON estruturadas (agendamento, disponibilidade, serviços) |
+| `app/Domain/Agenda/ReservarHorario.php` | Lógica de negócio: validações V1–V8, cálculo de períodos, idempotência, freios |
+| `app/Domain/Agenda/` | Suporte: `CalculoDeReserva`, `ConsultarDisponibilidade`, `CatalogoDaReserva`, `PedidoDeReserva`, `ResultadoDaReserva`, `RepetirEmConflito`, `JanelasDeExpediente`, `SnapshotServico`, `SnapshotRegiao` |
+| `app/Domain/Agenda/ReservaRecusada.php` | Exceção de recusa de regra, com código estável e mensagem fixa (422 na API) |
+| `config/cleison.php` | Retenção LGPD (prazo e responsável, sem padrão), freios da reserva, limites da API e `API_ATRAS_DE_PROXY` |
+| `routes/console.php` | Agenda: `cleison:expirar-solicitados` a cada 5 minutos; `cleison:anonimizar-inativos` às 03:30 e `cleison:limpar-idempotencia` às 03:45 de São Paulo |
 | `database/seeders/DemonstracaoSeeder.php` | Dados de exemplo do ZIP, identificados |
 | `tests/Feature/Banco/` | Constraints, ocupação, estados, privilégios, concorrência, migrations, anonimização |
+| `tests/Feature/Agenda/` | Domínio da reserva: V1 a V8, idempotência, consulta/cancelamento/remarcação, expiração, máximo em aberto, concorrência com COMMIT real |
+| `tests/Feature/Api/` | API HTTP v1: contrato, varredura sem dado de terceiros, erros, limites (IP, telefone, código, global por rota), teto diário |
 | `tests/Suporte/` | Helpers, trait `BancoDeTeste`, processo filho da concorrência |
 | `docs/LGPD-ANONIMIZACAO.md` | Especificação completa da anonimização (D1–D8, decisões, funções SQL) |
 | `docs/ESPEC-RESERVA.md` | Especificação da reserva de horário (etapa 2, E1–E5, decisões) |
