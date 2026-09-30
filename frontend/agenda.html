@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agenda do barbeiro</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0A0A0D">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📒</text></svg>">
+<link rel="preload" href="assets/fontes/inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fontes/instrument-serif.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fontes.css">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+
+<div class="grao" aria-hidden="true"></div>
+
+<header class="painel-capa">
+  <div class="envelope">
+    <span class="rotulo">Area do barbeiro</span>
+    <h1 id="painel-titulo">Minha agenda</h1>
+  </div>
+</header>
+
+<main class="painel">
+  <div class="envelope">
+
+    <form class="entrar" id="form-entrar">
+      <label class="campo">
+        <span>PIN de acesso</span>
+        <input type="password" id="campo-pin" inputmode="numeric" autocomplete="current-password" placeholder="****" required>
+      </label>
+      <p class="erro" id="erro-pin" hidden></p>
+      <button class="botao botao-ouro botao-largo" type="submit" style="margin-top:1.1rem">
+        <span>Entrar</span>
+      </button>
+    </form>
+
+    <div id="area-agenda" hidden>
+
+      <div class="barra-dia">
+        <button class="seta-dia" id="botao-anterior" type="button" aria-label="Dia anterior">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+        <input type="date" id="campo-dia" aria-label="Escolher dia">
+        <button class="seta-dia" id="botao-proximo" type="button" aria-label="Proximo dia">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+      <div class="resumo-dia">
+        <div><b id="conta-cortes">0</b><span>Cortes</span></div>
+        <div><b id="conta-casa">0</b><span>Em casa</span></div>
+        <div><b id="conta-total">R$ 0</b><span>Do dia</span></div>
+      </div>
+
+      <p class="erro" id="erro-agenda" hidden></p>
+      <div id="lista-agendamentos"></div>
+
+      <p style="margin-top:2rem;text-align:center">
+        <a href="index.html" style="color:var(--fumaca);font-size:.85rem">&larr; Voltar para o site</a>
+      </p>
+    </div>
+
+  </div>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/admin.js"></script>
+</body>
+</html>
