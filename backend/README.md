@@ -540,14 +540,11 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    esses registros ficam lá, quem atende pedido de titular sobre eles
    (hoje, só manualmente) e, na migração para o backend, se são importados,
    anonimizados ou descartados.
-9. **Decisões da etapa 2 (especificação):** E1 a E5 em
+9. ~~Decisões da etapa 2 (E1 a E8)~~ **Decididas e implementadas** (E1 catálogo
+   válido no banco para o site; E2 encaixe do operador com motivo; E3 site não
+   altera nome; E4 até 3 serviços; E5 site nasce `solicitado`; E6 código +
+   telefone; E7 confirmação por comando; E8 flag desligada).
    [`docs/ESPEC-RESERVA.md`](../docs/ESPEC-RESERVA.md), seção 10.
-   - E1: Defesa em profundidade no banco para o canal site (validação de
-     serviço ativo e vínculo profissional_servico no trigger do INSERT)?
-   - E2: Operador pode encaixar fora do expediente ou da antecedência?
-   - E3: Site pode alterar nome de cliente já cadastrado?
-   - E4: Quantos serviços por reserva?
-   - E5: Estado inicial de reserva pelo site?
 10. **Proxy na frente da API (etapa 6).** Definir `API_ATRAS_DE_PROXY`
     (obrigatória em produção; a trava recusa `true` com `TRUSTED_PROXIES`
     vazio). Atrás da Netlify não há configuração correta hoje (sem lista
