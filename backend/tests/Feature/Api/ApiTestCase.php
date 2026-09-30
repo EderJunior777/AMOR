@@ -43,7 +43,7 @@ abstract class ApiTestCase extends TestCase
         // Limites folgados: quem testa 429 (LimitesApiTest) baixa um de cada vez.
         config(['cleison.api.limites' => array_fill_keys([
             'geral_por_minuto', 'criar_por_minuto_ip', 'criar_por_hora_telefone',
-            'reserva_por_minuto_ip_codigo', 'reserva_por_hora_ip',
+            'reserva_por_minuto_ip_codigo', 'reserva_por_hora_ip', 'global_por_minuto_por_rota',
         ], 100000)]);
         Event::listen(MessageLogged::class, function (MessageLogged $e) {
             $this->logs[] = $e->message.' '.json_encode($e->context);

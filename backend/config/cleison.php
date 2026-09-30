@@ -50,10 +50,17 @@ return [
      * valor cru: o cache padrao e uma tabela do banco.
      */
     'api' => [
+        // O backend fica atras de proxy reverso (Netlify /api/*)? OBRIGATORIA
+        // em producao, true ou false, SEM padrao: a TravaDeProducao recusa
+        // subir sem ela, e recusa true com TRUSTED_PROXIES vazio (todo cliente
+        // teria o IP do proxy e o limite por IP viraria global, calado).
+        'atras_de_proxy' => env('API_ATRAS_DE_PROXY'),
+
         // Limites por IP. So deixe ligado se o IP do cliente for confiavel:
         // atras de proxy (Netlify), exige TRUSTED_PROXIES certo; sem isso todo
         // cliente tem o IP do proxy e o limite vira global. Desligado (false):
-        // sem limite por IP; ficam o por telefone e o por codigo.
+        // sem limite por IP; ficam o por telefone, o por codigo e o global
+        // por rota (global_por_minuto_por_rota).
         'limites_por_ip' => filter_var(env('API_LIMITE_POR_IP', true), FILTER_VALIDATE_BOOL),
 
         'limites' => [
@@ -65,6 +72,9 @@ return [
             // consultar/cancelar/remarcar: por IP + codigo por minuto e por IP por hora.
             'reserva_por_minuto_ip_codigo' => (int) env('API_LIMITE_RESERVA_POR_MINUTO_IP_CODIGO', 5),
             'reserva_por_hora_ip' => (int) env('API_LIMITE_RESERVA_POR_HORA_IP', 30),
+            // So com limites_por_ip=false: por rota, todos os clientes juntos,
+            // por minuto. Alto de proposito: e freio, nao cota por pessoa.
+            'global_por_minuto_por_rota' => (int) env('API_LIMITE_GLOBAL_POR_MINUTO_POR_ROTA', 600),
         ],
     ],
 

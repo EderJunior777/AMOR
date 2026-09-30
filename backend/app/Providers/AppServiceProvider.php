@@ -69,13 +69,15 @@ class AppServiceProvider extends ServiceProvider
     private function limitesDaApi(): void
     {
         $limite = fn (string $nome): int => (int) config("cleison.api.limites.{$nome}");
-        // cleison.api.limites_por_ip = false: IP nao confiavel (proxy sem
-        // TRUSTED_PROXIES); ficam so os limites por telefone e por codigo.
+        // cleison.api.limites_por_ip = false: IP nao confiavel; ficam os limites
+        // por telefone e por codigo e, em toda rota, um global alto por rota
+        // (achado #3: catalogo e disponibilidade nunca ficam sem freio).
         $porIp = fn (): bool => (bool) config('cleison.api.limites_por_ip', true);
 
         RateLimiter::for('api-geral', fn (Request $request) => $porIp()
             ? Limit::perMinute($limite('geral_por_minuto'))->by(ChaveDeLimite::de('geral', (string) $request->ip()))
-            : Limit::none());
+            : Limit::perMinute($limite('global_por_minuto_por_rota'))
+                ->by(ChaveDeLimite::de('global-rota', $request->method(), (string) ($request->route()?->uri() ?? $request->path()))));
 
         RateLimiter::for('api-criar-reserva', fn (Request $request) => $porIp()
             ? Limit::perMinute($limite('criar_por_minuto_ip'))->by(ChaveDeLimite::de('criar-ip', (string) $request->ip()))

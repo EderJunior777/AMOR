@@ -23,6 +23,7 @@ class LimitesSemIpApiTest extends ApiTestCase
                 'criar_por_hora_telefone' => 2,
                 'reserva_por_minuto_ip_codigo' => 2,
                 'reserva_por_hora_ip' => 2,
+                'global_por_minuto_por_rota' => 1000,
             ],
         ]);
         $this->segredos[] = self::CODIGO;
@@ -46,6 +47,31 @@ class LimitesSemIpApiTest extends ApiTestCase
         foreach (range(1, 5) as $i) {
             $this->getJson('/api/v1/servicos')->assertOk();
         }
+    }
+
+    /**
+     * Achado #3 da Fase 5: sem limite por IP, fica sempre um limite global
+     * alto POR ROTA (todos os clientes juntos), para o catalogo e a
+     * disponibilidade nao ficarem sem freio nenhum.
+     */
+    public function test_desligado_fica_um_limite_global_por_rota_de_qualquer_ip(): void
+    {
+        config(['cleison.api.limites.global_por_minuto_por_rota' => 2]);
+
+        $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.1'])->getJson('/api/v1/servicos')->assertOk();
+        $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.7'])->getJson('/api/v1/servicos')->assertOk();
+        $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.99'])->getJson('/api/v1/servicos')
+            ->assertStatus(429)->assertJsonPath('codigo', 'muitas_tentativas');
+
+        // Outra rota tem o proprio limite.
+        $this->getJson('/api/v1/regioes')->assertOk();
+    }
+
+    public function test_limite_global_por_rota_tem_padrao_alto(): void
+    {
+        $arquivo = require config_path('cleison.php');
+
+        $this->assertSame(600, $arquivo['api']['limites']['global_por_minuto_por_rota']);
     }
 
     public function test_desligado_a_criacao_ainda_limita_por_telefone(): void

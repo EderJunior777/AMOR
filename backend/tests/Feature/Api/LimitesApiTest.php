@@ -24,6 +24,7 @@ class LimitesApiTest extends ApiTestCase
             'criar_por_hora_telefone' => 1000,
             'reserva_por_minuto_ip_codigo' => 1000,
             'reserva_por_hora_ip' => 1000,
+            'global_por_minuto_por_rota' => 1000,
         ]]);
         $this->segredos[] = self::CODIGO;
     }
