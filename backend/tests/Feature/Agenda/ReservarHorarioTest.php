@@ -731,6 +731,15 @@ class ReservarHorarioTest extends TestCase
         $this->assertSame('Retorno rapido', $evento2->dados['motivo']);
     }
 
+    public function test_motivo_de_encaixe_acima_de_300_e_recusado_sem_cortar(): void
+    {
+        $this->recusa('motivo_muito_longo', fn () => $this->encaixe(['data' => '2026-10-06', 'hora' => '07:00'], str_repeat('m', 301)));
+        $this->assertSame(0, Agendamento::query()->count());
+
+        $r = $this->encaixe(['data' => '2026-10-06', 'hora' => '07:00'], str_repeat('m', 300));
+        $this->assertSame(EstadoAgendamento::Confirmado, $r->agendamento->estado);
+    }
+
     public function test_encaixe_pula_a_antecedencia_mas_nao_aceita_o_passado(): void
     {
         // agora = 10:00 local de 2026-10-05. Registrar o que ja passou e o

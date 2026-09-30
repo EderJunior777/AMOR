@@ -12,6 +12,9 @@
  * Uso: php reservar_pelo_dominio.php <portao> <arquivo-json>
  *   arquivo-json: {"dados":{...}, "canal":"site", "chave":"..."|null,
  *                  "operador_id":N|null, "agora":"2026-10-05 13:00:00"}
+ *   ou, para reserva existente: {"operacao":"remarcar_cliente"|"cancelar_cliente"|"confirmar",
+ *                  "codigo":"...", "telefone":"...", "data":"...", "hora":"...",
+ *                  "canal":"site", "operador_id":N|null, "agora":"..."}
  *   (o pedido vai por arquivo, nao por argumento: o telefone nao aparece na
  *   lista de processos.)
  * Saida (stdout, uma linha JSON):
@@ -54,15 +57,30 @@ Carbon::setTestNow(Carbon::parse($pedido['agora'], 'UTC'));
 $canal = Canal::from($pedido['canal']);
 $operador = $pedido['operador_id'] !== null ? User::query()->findOrFail($pedido['operador_id']) : null;
 $servico = $app->make(ReservarHorario::class);
-$reserva = PedidoDeReserva::deDados($pedido['dados'], $pedido['chave']);
+$operacao = $pedido['operacao'] ?? 'executar';
+$reserva = $operacao === 'executar' ? PedidoDeReserva::deDados($pedido['dados'], $pedido['chave']) : null;
 
 // Portao: bloqueia aqui ate o pai soltar o lock exclusivo.
 DB::select('SELECT pg_advisory_lock_shared(?)', [(int) $portao]);
 DB::select('SELECT pg_advisory_unlock_shared(?)', [(int) $portao]);
 
+// Opcional: comeca um pouco depois dos outros (janela de disputa forcada).
+usleep(((int) ($pedido['atraso_ms'] ?? 0)) * 1000);
+
 try {
-    $resultado = $servico->executar($reserva, $canal, $operador);
-    $saida = ['ok' => true, 'id' => $resultado->agendamento->id, 'repetida' => $resultado->repetida];
+    // Reserva existente (ReservaExistenteConcorrenciaTest): codigo, telefone, data, hora no JSON.
+    $existente = match ($operacao) {
+        'executar' => null,
+        'remarcar_cliente' => $servico->remarcarPeloCliente($pedido['codigo'], $pedido['telefone'], $pedido['data'], $pedido['hora']),
+        'cancelar_cliente' => $servico->cancelarPeloCliente($pedido['codigo'], $pedido['telefone']),
+        'confirmar' => $servico->confirmar($pedido['codigo'], $operador),
+    };
+    if ($existente !== null) {
+        $saida = ['ok' => true, 'id' => $existente->id, 'estado' => $existente->estado->value];
+    } else {
+        $resultado = $servico->executar($reserva, $canal, $operador);
+        $saida = ['ok' => true, 'id' => $resultado->agendamento->id, 'repetida' => $resultado->repetida];
+    }
 } catch (QueryException $e) {
     $saida = ['ok' => false, 'tipo' => 'QueryException', 'sqlstate' => ErroDeBanco::sqlstate($e), 'constraint' => ErroDeBanco::constraint($e)];
 } catch (ReservaRecusada $e) {

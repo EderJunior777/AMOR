@@ -27,6 +27,7 @@ final class ReservaRecusada extends DomainException
         'reserva_nao_encontrada' => 'Reserva nao encontrada. Confira o codigo e o telefone.',
         'fora_do_prazo' => 'O prazo para alterar esta reserva pelo site ja passou. Fale com a barbearia.',
         'motivo_obrigatorio' => 'Informe o motivo do encaixe.',
+        'motivo_muito_longo' => 'O motivo pode ter no maximo trezentos caracteres.',
         'estado_nao_permite' => 'Esta reserva nao pode ser alterada no estado atual.',
         'agenda_indisponivel' => 'A agenda esta indisponivel no momento. Tente novamente mais tarde.',
     ];

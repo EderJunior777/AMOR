@@ -46,6 +46,9 @@ final class ReservarHorario
 {
     private const CONSTRAINT_DA_CHAVE = 'agendamentos_chave_idempotencia_unica';
 
+    /** motivo_cancelamento e dados.motivo: o mesmo limite do banco (varchar(300)). */
+    private const LIMITE_DO_MOTIVO = 300;
+
     private HashDaRequisicao $hash;
 
     private RepetirEmConflito $repetir;
@@ -90,6 +93,7 @@ final class ReservarHorario
         if ($pedido->motivoEncaixe === null) {
             throw ReservaRecusada::por('motivo_obrigatorio');
         }
+        self::texto($pedido->motivoEncaixe); // recusa acima do limite, nunca corta
 
         return $this->processar($pedido, $canal, $operador, encaixe: true);
     }
@@ -398,12 +402,20 @@ final class ReservarHorario
         return (int) $agendamento->getKey();
     }
 
-    /** Texto livre do operador: espacos normalizados, vazio vira nulo, no maximo 300 (o limite do banco). */
+    /**
+     * Texto livre do operador: espacos normalizados, vazio vira nulo. Acima de
+     * 300 (o limite do banco) e RECUSADO, nunca cortado em silencio.
+     *
+     * @throws ReservaRecusada motivo_muito_longo
+     */
     private static function texto(?string $valor): ?string
     {
         $limpo = trim((string) preg_replace('/\s+/u', ' ', (string) $valor));
+        if (mb_strlen($limpo) > self::LIMITE_DO_MOTIVO) {
+            throw ReservaRecusada::por('motivo_muito_longo');
+        }
 
-        return $limpo === '' ? null : mb_substr($limpo, 0, 300);
+        return $limpo === '' ? null : $limpo;
     }
 
     private function carregar(Agendamento $agendamento): Agendamento

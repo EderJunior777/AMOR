@@ -141,7 +141,7 @@ class ContratoDoDominioTest extends TestCase
             'data_invalida', 'fora_da_grade', 'hora_inexistente', 'antecedencia', 'alem_do_horizonte',
             'servico_indisponivel', 'profissional_indisponivel', 'domicilio_indisponivel',
             'fora_do_expediente', 'idempotencia_conflito', 'remarcacao_exige_novo_pedido',
-            'reserva_nao_encontrada', 'fora_do_prazo', 'motivo_obrigatorio', 'estado_nao_permite', 'agenda_indisponivel',
+            'reserva_nao_encontrada', 'fora_do_prazo', 'motivo_obrigatorio', 'motivo_muito_longo', 'estado_nao_permite', 'agenda_indisponivel',
         ] as $codigo) {
             $this->assertArrayHasKey($codigo, ReservaRecusada::MENSAGENS);
         }

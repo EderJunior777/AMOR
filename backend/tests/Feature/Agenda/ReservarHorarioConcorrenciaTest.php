@@ -5,6 +5,7 @@ namespace Tests\Feature\Agenda;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Tests\Suporte\DadosDeReserva;
+use Tests\Suporte\ProcessosDeReserva;
 use Tests\TestCase;
 
 /**
@@ -16,12 +17,9 @@ use Tests\TestCase;
  */
 class ReservarHorarioConcorrenciaTest extends TestCase
 {
-    use DadosDeReserva;
+    use DadosDeReserva, ProcessosDeReserva;
 
     private const CHAVE = 'chave-0123456789abcdef';
-
-    /** @var list<string> */
-    private array $arquivos = [];
 
     protected function setUp(): void
     {
@@ -34,9 +32,7 @@ class ReservarHorarioConcorrenciaTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach ($this->arquivos as $arquivo) {
-            @unlink($arquivo);
-        }
+        $this->limparArquivosDeProcessos();
         DB::connection('pgsql_b')->disconnect();
         $this->limparTabelasDoDominio();
         parent::tearDown();
@@ -170,80 +166,5 @@ class ReservarHorarioConcorrenciaTest extends TestCase
         $perdedor = array_values(array_filter($resultados, fn ($r) => ! $r['ok']))[0];
         $this->assertSame(['ReservaRecusada', 'idempotencia_conflito'], [$perdedor['tipo'], $perdedor['codigo']], json_encode($resultados));
         $this->assertSame(1, DB::table('agendamentos')->count());
-    }
-
-    /**
-     * Sobe um processo PHP por tentativa e so os libera quando TODOS estao
-     * conectados e bloqueados no portao (conferido em pg_locks).
-     *
-     * @param  list<array<string, mixed>>  $tentativas
-     * @return list<array<string, mixed>>
-     */
-    private function dispararProcessos(array $tentativas): array
-    {
-        $cfg = config('database.connections.pgsql');
-        $ambiente = array_merge(getenv(), [
-            'APP_ENV' => 'testing',
-            'DB_URL' => '',
-            'DB_HOST' => (string) $cfg['host'],
-            'DB_PORT' => (string) $cfg['port'],
-            'DB_DATABASE' => (string) $cfg['database'],
-            'DB_USERNAME' => (string) $cfg['username'],
-            'DB_PASSWORD' => (string) $cfg['password'],
-            'LOG_CHANNEL' => 'null',
-        ]);
-        $script = base_path('tests/Suporte/reservar_pelo_dominio.php');
-        $portao = random_int(1000, 2_000_000_000);
-        $quem = DB::connection('pgsql_b');
-        $quem->select('SELECT pg_advisory_lock(?)', [$portao]);
-
-        $processos = [];
-        try {
-            foreach ($tentativas as $tentativa) {
-                $arquivo = (string) tempnam(sys_get_temp_dir(), 'reserva');
-                $this->arquivos[] = $arquivo;
-                file_put_contents($arquivo, json_encode($tentativa, JSON_THROW_ON_ERROR));
-
-                $processo = proc_open(
-                    [PHP_BINARY, $script, (string) $portao, $arquivo],
-                    [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-                    $tubos,
-                    base_path(),
-                    $ambiente,
-                );
-                $this->assertIsResource($processo);
-                $processos[] = [$processo, $tubos];
-            }
-
-            // Espera (com limite) ate todos os filhos estarem na fila do portao.
-            $limite = microtime(true) + 90;
-            do {
-                $esperando = (int) DB::scalar(
-                    "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND classid = 0 AND objid = ? AND NOT granted",
-                    [$portao]
-                );
-                if ($esperando === count($tentativas)) {
-                    break;
-                }
-                usleep(20_000);
-            } while (microtime(true) < $limite);
-
-            $this->assertSame(count($tentativas), $esperando, 'nem todos os processos chegaram ao portao');
-        } finally {
-            $quem->select('SELECT pg_advisory_unlock(?)', [$portao]);
-        }
-
-        $resultados = [];
-        foreach ($processos as [$processo, $tubos]) {
-            $saida = stream_get_contents($tubos[1]);
-            $erro = stream_get_contents($tubos[2]);
-            fclose($tubos[1]);
-            fclose($tubos[2]);
-            proc_close($processo);
-            $resultados[] = json_decode(trim((string) $saida), true)
-                ?? ['ok' => false, 'tipo' => 'SAIDA_INVALIDA', 'erro' => $saida.$erro];
-        }
-
-        return $resultados;
     }
 }

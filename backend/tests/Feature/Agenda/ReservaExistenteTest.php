@@ -288,15 +288,30 @@ class ReservaExistenteTest extends TestCase
         $this->assertSame('cliente pediu por telefone', json_decode($evento->dados, true)['motivo']);
     }
 
-    public function test_operador_cancela_sem_motivo_e_limita_o_motivo_a_300(): void
+    public function test_operador_cancela_sem_motivo_e_motivo_acima_de_300_e_recusado_sem_cortar(): void
     {
         $operador = $this->novoOperador();
         $a = $this->reserva();
         $b = $this->reserva(['data' => '2026-10-08']);
+        $c = $this->reserva(['data' => '2026-10-09']);
 
         $this->assertNull($this->servico()->cancelarPeloOperador($a->codigo_publico, $operador, '   ')->motivo_cancelamento);
-        $longo = $this->servico()->cancelarPeloOperador($b->codigo_publico, $operador, str_repeat('ã', 400));
-        $this->assertSame(300, mb_strlen($longo->motivo_cancelamento));
+
+        $this->recusa('motivo_muito_longo', fn () => $this->servico()->cancelarPeloOperador($b->codigo_publico, $operador, str_repeat('ã', 301)));
+        $this->assertSame(EstadoAgendamento::Solicitado, $b->fresh()->estado, 'nada muda na recusa');
+
+        $limite = $this->servico()->cancelarPeloOperador($c->codigo_publico, $operador, str_repeat('ã', 300));
+        $this->assertSame(300, mb_strlen($limite->motivo_cancelamento));
+    }
+
+    public function test_motivo_de_encaixe_na_remarcacao_acima_de_300_e_recusado(): void
+    {
+        $operador = $this->novoOperador();
+        $criada = $this->reserva();
+
+        $this->recusa('motivo_muito_longo', fn () => $this->servico()
+            ->remarcarPeloOperador($criada->codigo_publico, $operador, '2026-10-08', '21:00', str_repeat('m', 301)));
+        $this->assertEquals($criada->inicio_servico, $criada->fresh()->inicio_servico);
     }
 
     public function test_operador_cancela_solicitado_confirmado_e_em_atendimento_mas_nao_encerrados(): void
