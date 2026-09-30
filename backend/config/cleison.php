@@ -28,6 +28,12 @@ return [
      * valor cru: o cache padrao e uma tabela do banco.
      */
     'api' => [
+        // Limites por IP. So deixe ligado se o IP do cliente for confiavel:
+        // atras de proxy (Netlify), exige TRUSTED_PROXIES certo; sem isso todo
+        // cliente tem o IP do proxy e o limite vira global. Desligado (false):
+        // sem limite por IP; ficam o por telefone e o por codigo.
+        'limites_por_ip' => filter_var(env('API_LIMITE_POR_IP', true), FILTER_VALIDATE_BOOL),
+
         'limites' => [
             // Toda rota, por IP, por minuto.
             'geral_por_minuto' => (int) env('API_LIMITE_GERAL_POR_MINUTO', 60),

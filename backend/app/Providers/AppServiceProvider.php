@@ -68,14 +68,18 @@ class AppServiceProvider extends ServiceProvider
     private function limitesDaApi(): void
     {
         $limite = fn (string $nome): int => (int) config("cleison.api.limites.{$nome}");
+        // cleison.api.limites_por_ip = false: IP nao confiavel (proxy sem
+        // TRUSTED_PROXIES); ficam so os limites por telefone e por codigo.
+        $porIp = fn (): bool => (bool) config('cleison.api.limites_por_ip', true);
 
-        RateLimiter::for('api-geral', fn (Request $request) => Limit::perMinute($limite('geral_por_minuto'))
-            ->by(self::chaveDeLimite('geral', (string) $request->ip())));
+        RateLimiter::for('api-geral', fn (Request $request) => $porIp()
+            ? Limit::perMinute($limite('geral_por_minuto'))->by(self::chaveDeLimite('geral', (string) $request->ip()))
+            : Limit::none());
 
-        RateLimiter::for('api-criar-reserva', function (Request $request) use ($limite) {
-            $limites = [
+        RateLimiter::for('api-criar-reserva', function (Request $request) use ($limite, $porIp) {
+            $limites = $porIp() ? [
                 Limit::perMinute($limite('criar_por_minuto_ip'))->by(self::chaveDeLimite('criar-ip', (string) $request->ip())),
-            ];
+            ] : [];
 
             $cliente = $request->input('cliente');
             $telefone = is_array($cliente) ? ($cliente['telefone'] ?? null) : null;
@@ -87,10 +91,14 @@ class AppServiceProvider extends ServiceProvider
             return $limites;
         });
 
-        RateLimiter::for('api-reserva-existente', function (Request $request) use ($limite) {
+        RateLimiter::for('api-reserva-existente', function (Request $request) use ($limite, $porIp) {
             $codigo = $request->input('codigo');
             $codigo = is_string($codigo) ? strtolower(trim($codigo)) : '';
             $ip = (string) $request->ip();
+
+            if (! $porIp()) {
+                return Limit::perMinute($limite('reserva_por_minuto_ip_codigo'))->by(self::chaveDeLimite('reserva-codigo', $codigo));
+            }
 
             return [
                 Limit::perMinute($limite('reserva_por_minuto_ip_codigo'))->by(self::chaveDeLimite('reserva-ip-codigo', $ip, $codigo)),

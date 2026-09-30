@@ -90,3 +90,7 @@ Navegador/mobile, perda de conexão, cache antigo, permissões,
 backup/restauração ensaiados, verificação e importação dos Blobs (dry-run,
 id legado, relatório), troca única da origem de gravação, HTTPS, health check,
 monitoramento. Publicação e serviços externos só aqui, com escopo aprovado.
+Proxy `/api/*` da Netlify: `TRUSTED_PROXIES` com os IPs de saída do proxy,
+ou `API_LIMITE_POR_IP=false` (só limites por telefone e por código); nunca
+limite por IP com `TRUSTED_PROXIES` vazio atrás de proxy
+(`backend/README.md`, "Atrás da Netlify").

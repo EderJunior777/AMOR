@@ -238,6 +238,26 @@ A distinção é feita por `runningInConsole()` e pelo nome do comando
 confiável: o IP e o esquema vêm da própria conexão. Curinga (`*`) é
 recusado em produção.
 
+#### Atrás da Netlify (site chamando `/api/*` na mesma origem)
+
+Com o proxy `/api/*` da Netlify, **toda** requisição chega ao backend com o
+IP da Netlify. Os limites da API por IP (`API_LIMITE_GERAL_POR_MINUTO`,
+`API_LIMITE_CRIAR_POR_MINUTO_IP`, `API_LIMITE_RESERVA_POR_*`) passam então a
+valer para todos os clientes juntos: um único abusador bloqueia o site
+inteiro. Em produção, uma das duas, sem meio-termo:
+
+1. **`TRUSTED_PROXIES` certo:** só os endereços de saída do proxy (faixas
+   publicadas pelo provedor, nunca `*` nem faixa ampla). Aí o IP do cliente
+   vem do `X-Forwarded-For` e cada cliente tem o próprio limite
+   (`LimitesPorIpAtrasDeProxyTest`).
+2. **Se não der para garantir o item 1:** `API_LIMITE_POR_IP=false`. O
+   limite por IP é desligado e ficam só o **por telefone** (criação de
+   reserva) e o **por código** (consultar/cancelar/remarcar)
+   (`LimitesSemIpApiTest`).
+
+Nunca deixe `API_LIMITE_POR_IP=true` com `TRUSTED_PROXIES` vazio atrás de
+proxy. Configurar e conferir isso é item da etapa 6 (implantação).
+
 ## Runbook: migração só para frente
 
 Em produção o esquema só avança. `migrate:rollback`, `migrate:reset`,
@@ -453,6 +473,10 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    - E3: Site pode alterar nome de cliente já cadastrado?
    - E4: Quantos serviços por reserva?
    - E5: Estado inicial de reserva pelo site?
+10. **Throttle por IP atrás do proxy (etapa 6).** Antes de publicar a API
+    atrás da Netlify: `TRUSTED_PROXIES` com os IPs de saída do proxy, **ou**
+    `API_LIMITE_POR_IP=false` (fica o limite por telefone e por código).
+    Detalhes em "Proxies confiáveis > Atrás da Netlify".
 
 ## Mapa
 
