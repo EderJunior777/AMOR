@@ -124,8 +124,41 @@ class CatalogoNoSiteTest extends TestCase
         $agendamento = $this->agendamentoCru('presencial');
         $this->item($agendamento, $inativo);
 
-        $this->assertBancoRecusa(self::REGRA, fn () => DB::table('agendamentos')
+        $this->assertBancoRecusa('agendamentos_origem_imutavel', fn () => DB::table('agendamentos')
             ->where('id', $agendamento)->update(['origem' => 'site']));
+    }
+
+    public function test_origem_do_site_nao_vira_presencial(): void
+    {
+        $servico = $this->novoServico();
+        $this->vincular($servico);
+        $agendamento = $this->agendamentoCru('site');
+        $this->item($agendamento, $servico);
+
+        // Saindo do site, o item ficaria livre para trocar por servico inativo.
+        $this->assertBancoRecusa('agendamentos_origem_imutavel', fn () => DB::table('agendamentos')
+            ->where('id', $agendamento)->update(['origem' => 'presencial']));
+        $this->assertBancoRecusa('agendamentos_origem_imutavel', fn () => DB::table('agendamentos')
+            ->where('id', $agendamento)->update(['origem' => 'whatsapp']));
+    }
+
+    public function test_reatribuir_reserva_do_site_com_servico_ja_desativado_exige_so_o_vinculo(): void
+    {
+        $servico = $this->novoServico();
+        $this->vincular($servico);
+        $agendamento = $this->agendamentoCru('site');
+        $this->item($agendamento, $servico);
+        DB::table('servicos')->where('id', $servico)->update(['ativo' => false]);
+
+        $semVinculo = $this->novoProfissional('Sem vinculo');
+        $this->assertBancoRecusa(self::REGRA, fn () => DB::table('agendamentos')
+            ->where('id', $agendamento)->update(['profissional_id' => $semVinculo]));
+
+        $comVinculo = $this->novoProfissional('Com vinculo');
+        DB::table('profissional_servico')->insert(['profissional_id' => $comVinculo, 'servico_id' => $servico]);
+        DB::table('agendamentos')->where('id', $agendamento)->update(['profissional_id' => $comVinculo]);
+
+        $this->assertSame($comVinculo, (int) DB::table('agendamentos')->where('id', $agendamento)->value('profissional_id'));
     }
 
     public function test_trocar_o_profissional_do_site_exige_vinculo_do_novo(): void
@@ -179,6 +212,7 @@ class CatalogoNoSiteTest extends TestCase
             'public.cleison_conferir_catalogo_no_site(bigint, bigint)',
             'public.cleison_item_exige_catalogo_no_site()',
             'public.cleison_agendamento_exige_catalogo_no_site()',
+            'public.cleison_origem_imutavel()',
         ] as $assinatura) {
             $funcao = DB::selectOne('SELECT prosecdef, proconfig FROM pg_proc WHERE oid = ?::regprocedure', [$assinatura]);
 
@@ -189,6 +223,7 @@ class CatalogoNoSiteTest extends TestCase
 
     public function test_mensagem_traduzida_sem_detalhe(): void
     {
+        $this->assertArrayHasKey('agendamentos_origem_imutavel', ErroDeBanco::MENSAGENS);
         $this->assertArrayHasKey(self::REGRA, ErroDeBanco::MENSAGENS);
         $this->assertStringNotContainsStringIgnoringCase('profissional_servico', ErroDeBanco::MENSAGENS[self::REGRA]);
     }
