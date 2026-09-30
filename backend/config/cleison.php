@@ -26,9 +26,15 @@ return [
      *     (ator sistema, motivo "expirado") depois disso, contado da criacao,
      *     ou quando o inicio chega, o que vier primeiro
      *     (cleison:expirar-solicitados, a cada 5 minutos). Inteiro >= 1.
+     *   maximo_em_aberto_por_telefone: reservas em aberto (solicitado ou
+     *     confirmado, inicio no futuro, de qualquer canal) que um telefone
+     *     pode ter para o SITE aceitar mais uma. O operador nao tem esse
+     *     limite. Inteiro >= 1.
+     * Valor invalido falha fechado (nada expira; o site nao reserva).
      */
     'reservas' => [
         'solicitado_expira_horas' => env('CLEISON_SOLICITADO_EXPIRA_HORAS', 12),
+        'maximo_em_aberto_por_telefone' => env('CLEISON_MAXIMO_RESERVAS_EM_ABERTO_POR_TELEFONE', 2),
     ],
 
     /*

@@ -290,6 +290,7 @@ class ReservaExistenteTest extends TestCase
 
     public function test_operador_cancela_sem_motivo_e_motivo_acima_de_300_e_recusado_sem_cortar(): void
     {
+        config(['cleison.reservas.maximo_em_aberto_por_telefone' => 3]); // tres reservas do mesmo telefone (fora do assunto)
         $operador = $this->novoOperador();
         $a = $this->reserva();
         $b = $this->reserva(['data' => '2026-10-08']);

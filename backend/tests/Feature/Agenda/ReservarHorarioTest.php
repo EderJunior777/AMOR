@@ -578,6 +578,7 @@ class ReservarHorarioTest extends TestCase
 
     public function test_endereco_diferente_cria_novo(): void
     {
+        config(['cleison.reservas.maximo_em_aberto_por_telefone' => 3]); // tres reservas do mesmo telefone (fora do assunto)
         $a = $this->reservaEmDomicilio()->agendamento;
         $b = $this->reservaEmDomicilio([
             'hora' => '15:00',
@@ -606,6 +607,7 @@ class ReservarHorarioTest extends TestCase
 
     public function test_endereco_arquivado_ou_de_outra_regiao_nao_e_reusado(): void
     {
+        config(['cleison.reservas.maximo_em_aberto_por_telefone' => 3]); // tres reservas do mesmo telefone (fora do assunto)
         $primeiro = $this->reservaEmDomicilio()->agendamento;
         DB::table('enderecos_cliente')->where('id', $primeiro->endereco_cliente_id)->update(['arquivado_em' => now()]);
 

@@ -286,10 +286,7 @@ final class ReservarHorario
      */
     public function expirarSolicitados(): int
     {
-        $horas = filter_var(config('cleison.reservas.solicitado_expira_horas'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-        if ($horas === false) {
-            throw new InvalidArgumentException('CLEISON_SOLICITADO_EXPIRA_HORAS precisa ser um inteiro maior que zero.');
-        }
+        $horas = self::inteiroPositivo('solicitado_expira_horas', 'CLEISON_SOLICITADO_EXPIRA_HORAS');
 
         $agora = CarbonImmutable::now();
         $criadoAte = $agora->subHours($horas);
@@ -522,6 +519,9 @@ final class ReservarHorario
         ['reserva' => $reserva, 'catalogo' => $catalogo] = $this->preparar($pedido, $canal, $encaixe, travar: true);
 
         $clienteId = $this->clienteDoTelefone($pedido);
+        if ($canal === Canal::Site) {
+            $this->exigirVagaDoCliente($clienteId);
+        }
         $endereco = $catalogo->regiao !== null
             ? $this->enderecoDoCliente($pedido, $clienteId, $catalogo->regiao)
             : null;
@@ -566,10 +566,50 @@ final class ReservarHorario
     }
 
     /**
+     * Achado #1b: no site, no maximo cleison.reservas.maximo_em_aberto_por_telefone
+     * reservas em aberto (solicitado ou confirmado, inicio no futuro) do
+     * cliente, de qualquer canal. Roda com o cliente travado
+     * (clienteDoTelefone): duas reservas simultaneas do mesmo telefone
+     * entram em fila e a segunda conta a primeira.
+     *
+     * @throws ReservaRecusada limite_de_reservas_em_aberto
+     */
+    private function exigirVagaDoCliente(int $clienteId): void
+    {
+        $maximo = self::inteiroPositivo('maximo_em_aberto_por_telefone', 'CLEISON_MAXIMO_RESERVAS_EM_ABERTO_POR_TELEFONE');
+        $emAberto = Agendamento::query()
+            ->where('cliente_id', $clienteId)
+            ->whereIn('estado', [EstadoAgendamento::Solicitado, EstadoAgendamento::Confirmado])
+            ->where('inicio_servico', '>', CarbonImmutable::now())
+            ->count();
+        if ($emAberto >= $maximo) {
+            throw ReservaRecusada::por('limite_de_reservas_em_aberto');
+        }
+    }
+
+    /**
+     * Valor de cleison.reservas.$chave: inteiro >= 1, senao falha fechado.
+     *
+     * @throws InvalidArgumentException
+     */
+    private static function inteiroPositivo(string $chave, string $variavel): int
+    {
+        $valor = filter_var(config("cleison.reservas.{$chave}"), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($valor === false) {
+            throw new InvalidArgumentException("{$variavel} precisa ser um inteiro maior que zero.");
+        }
+
+        return $valor;
+    }
+
+    /**
      * E.164 unico. Cliente existente NAO tem o nome alterado (E3). A leitura
-     * e FOR SHARE: espera uma anonimizacao em andamento (que trava a linha)
-     * e, se o cliente virou anonimo (sem telefone), a linha deixa de casar e
-     * o laco cria um cliente novo (migration 2026_09_29_000400).
+     * e FOR UPDATE: reservas do mesmo telefone entram em fila, e a contagem
+     * de reservas em aberto (exigirVagaDoCliente) enxerga a anterior ja
+     * gravada (achado #1b). Tambem espera uma anonimizacao em andamento (que
+     * trava a linha) e, se o cliente virou anonimo (sem telefone), a linha
+     * deixa de casar e o laco cria um cliente novo (migration
+     * 2026_09_29_000400). Cliente recem-inserido ja esta travado pelo INSERT.
      */
     private function clienteDoTelefone(PedidoDeReserva $pedido): int
     {
@@ -583,7 +623,7 @@ final class ReservarHorario
             }
 
             $existente = DB::selectOne(
-                'SELECT id FROM clientes WHERE telefone = ? FOR SHARE',
+                'SELECT id FROM clientes WHERE telefone = ? FOR UPDATE',
                 [$pedido->clienteTelefone],
             );
             if ($existente !== null) {

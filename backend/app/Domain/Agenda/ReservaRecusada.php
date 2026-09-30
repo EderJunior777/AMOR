@@ -30,6 +30,7 @@ final class ReservaRecusada extends DomainException
         'motivo_muito_longo' => 'O motivo pode ter no maximo trezentos caracteres.',
         'estado_nao_permite' => 'Esta reserva nao pode ser alterada no estado atual.',
         'agenda_indisponivel' => 'A agenda esta indisponivel no momento. Tente novamente mais tarde.',
+        'limite_de_reservas_em_aberto' => 'Voce ja tem o maximo de reservas em aberto. Cancele uma delas ou fale com a barbearia.',
     ];
 
     private function __construct(public readonly string $codigo)

@@ -167,4 +167,64 @@ class ReservarHorarioConcorrenciaTest extends TestCase
         $this->assertSame(['ReservaRecusada', 'idempotencia_conflito'], [$perdedor['tipo'], $perdedor['codigo']], json_encode($resultados));
         $this->assertSame(1, DB::table('agendamentos')->count());
     }
+
+    // ------------------------------------------------------------------
+    // Achado #1b: maximo de reservas em aberto por telefone (padrao 2).
+    // O cliente ja existe: sem isso a UNIQUE do telefone ja faria o segundo
+    // esperar o primeiro, e o teste nao provaria a trava do cliente.
+    // ------------------------------------------------------------------
+
+    /** @return list<array<string, mixed>> tres pedidos do mesmo telefone, em horarios diferentes */
+    private function tresDoMesmoTelefone(int $atrasoDosOutrosMs = 0): array
+    {
+        $cliente = ['nome' => 'Mesmo Telefone', 'telefone' => '+5511988887777'];
+        DB::table('clientes')->insert($cliente);
+
+        return [
+            $this->tentativa($this->dadosDoPedido(['hora' => '10:00', 'cliente' => $cliente])),
+            $this->tentativa($this->dadosDoPedido(['hora' => '11:00', 'cliente' => $cliente])) + ['atraso_ms' => $atrasoDosOutrosMs],
+            $this->tentativa($this->dadosDoPedido(['hora' => '14:00', 'cliente' => $cliente])) + ['atraso_ms' => $atrasoDosOutrosMs],
+        ];
+    }
+
+    private function assertDuasPassamEUmaERecusadaPorLimite(array $resultados): void
+    {
+        $this->assertCount(2, array_filter($resultados, fn ($r) => $r['ok']), json_encode($resultados));
+        $perdedor = array_values(array_filter($resultados, fn ($r) => ! $r['ok']))[0];
+        $this->assertSame(['ReservaRecusada', 'limite_de_reservas_em_aberto'], [$perdedor['tipo'], $perdedor['codigo'] ?? null], json_encode($resultados));
+        $this->assertSame(2, DB::table('agendamentos')->count());
+        $this->assertAgendaConsistente();
+    }
+
+    public function test_tres_reservas_simultaneas_do_mesmo_telefone_so_duas_passam(): void
+    {
+        $this->assertDuasPassamEUmaERecusadaPorLimite($this->dispararProcessos($this->tresDoMesmoTelefone()));
+    }
+
+    /**
+     * Janela forcada: um trigger de TESTE segura por 1,5 s a transacao que
+     * acabou de inserir o agendamento (sem COMMIT); as outras comecam 300 ms
+     * depois. Com o cliente travado (FOR UPDATE), elas esperam e contam a
+     * reserva nova; sem a trava, as tres contariam zero e passariam.
+     */
+    public function test_com_a_janela_forcada_a_trava_do_cliente_segura_o_limite(): void
+    {
+        $dono = $this->conexaoDono();
+        $dono->unprepared(<<<'SQL'
+            CREATE OR REPLACE FUNCTION public.teste_insercao_lenta() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN PERFORM pg_sleep(1.5); RETURN NULL; END $$;
+            CREATE TRIGGER zz_teste_insercao_lenta AFTER INSERT ON public.agendamentos
+              FOR EACH ROW EXECUTE FUNCTION public.teste_insercao_lenta();
+        SQL);
+        try {
+            $resultados = $this->dispararProcessos($this->tresDoMesmoTelefone(atrasoDosOutrosMs: 300));
+        } finally {
+            $dono->unprepared(<<<'SQL'
+                DROP TRIGGER IF EXISTS zz_teste_insercao_lenta ON public.agendamentos;
+                DROP FUNCTION IF EXISTS public.teste_insercao_lenta();
+            SQL);
+        }
+
+        $this->assertDuasPassamEUmaERecusadaPorLimite($resultados);
+    }
 }
