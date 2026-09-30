@@ -10,7 +10,10 @@ use App\Http\Requests\Api\RemarcarRequest;
 use App\Http\Requests\Api\ReservaExistenteRequest;
 use App\Http\Requests\Api\ReservarRequest;
 use App\Http\Resources\ReservaResource;
+use App\Support\ChaveDeLimite;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Reserva pelo site. Fino: request (so formato) -> ReservarHorario -> resource.
@@ -18,15 +21,29 @@ use Illuminate\Http\JsonResponse;
  */
 class ReservaController extends Controller
 {
-    /** 201 na criacao; 200 na repeticao idempotente (mesmo corpo). Canal: sempre o site. */
+    private const UMA_HORA = 3600;
+
+    /**
+     * 201 na criacao; 200 na repeticao idempotente (mesmo corpo). Canal: sempre o site.
+     *
+     * Limite por telefone (achado #2): conferido aqui, DEPOIS da validacao, e
+     * so reserva CRIADA consome. Recusa (422), conflito (409) e repeticao nao
+     * contam: quem sabe o telefone de alguem nao esgota o limite dessa pessoa.
+     */
     public function criar(ReservarRequest $request, ReservarHorario $reservas): JsonResponse
     {
         $dados = $request->validated();
+        $pedido = PedidoDeReserva::deDados($dados, (string) $dados['idempotency_key']);
 
-        $resultado = $reservas->executar(
-            PedidoDeReserva::deDados($dados, (string) $dados['idempotency_key']),
-            Canal::Site,
-        );
+        $chave = ChaveDeLimite::de('criar-telefone', $pedido->clienteTelefone);
+        if (RateLimiter::tooManyAttempts($chave, (int) config('cleison.api.limites.criar_por_hora_telefone'))) {
+            throw new ThrottleRequestsException(headers: ['Retry-After' => RateLimiter::availableIn($chave)]);
+        }
+
+        $resultado = $reservas->executar($pedido, Canal::Site);
+        if (! $resultado->repetida) {
+            RateLimiter::hit($chave, self::UMA_HORA);
+        }
 
         return (new ReservaResource($resultado->agendamento))
             ->response($request)

@@ -7,7 +7,7 @@ use App\Console\Protegidos\RefreshProtegido;
 use App\Console\Protegidos\ResetProtegido;
 use App\Console\Protegidos\RollbackProtegido;
 use App\Console\Protegidos\WipeProtegido;
-use App\Support\Telefone;
+use App\Support\ChaveDeLimite;
 use App\Support\TravaDeProducao;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Console\Migrations\FreshCommand;
@@ -61,9 +61,10 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Limites da API publica v1 (valores em config cleison.api.limites, lidos a
-     * cada requisicao). Todos por IP; alem disso, criar reserva por telefone
-     * normalizado e reserva existente por IP + codigo. Tentativa invalida
-     * tambem conta (o limitador roda antes da validacao).
+     * cada requisicao). Todos por IP, e reserva existente tambem por IP +
+     * codigo. Rodam antes da validacao: tentativa invalida conta por IP.
+     * O limite por TELEFONE da criacao nao mora aqui (achado #2): fica no
+     * ReservaController, depois da validacao, e so reserva criada conta.
      */
     private function limitesDaApi(): void
     {
@@ -73,23 +74,12 @@ class AppServiceProvider extends ServiceProvider
         $porIp = fn (): bool => (bool) config('cleison.api.limites_por_ip', true);
 
         RateLimiter::for('api-geral', fn (Request $request) => $porIp()
-            ? Limit::perMinute($limite('geral_por_minuto'))->by(self::chaveDeLimite('geral', (string) $request->ip()))
+            ? Limit::perMinute($limite('geral_por_minuto'))->by(ChaveDeLimite::de('geral', (string) $request->ip()))
             : Limit::none());
 
-        RateLimiter::for('api-criar-reserva', function (Request $request) use ($limite, $porIp) {
-            $limites = $porIp() ? [
-                Limit::perMinute($limite('criar_por_minuto_ip'))->by(self::chaveDeLimite('criar-ip', (string) $request->ip())),
-            ] : [];
-
-            $cliente = $request->input('cliente');
-            $telefone = is_array($cliente) ? ($cliente['telefone'] ?? null) : null;
-            if (is_string($telefone) && trim($telefone) !== '') {
-                $limites[] = Limit::perHour($limite('criar_por_hora_telefone'))
-                    ->by(self::chaveDeLimite('criar-telefone', Telefone::normalizar($telefone) ?? trim($telefone)));
-            }
-
-            return $limites;
-        });
+        RateLimiter::for('api-criar-reserva', fn (Request $request) => $porIp()
+            ? Limit::perMinute($limite('criar_por_minuto_ip'))->by(ChaveDeLimite::de('criar-ip', (string) $request->ip()))
+            : Limit::none());
 
         RateLimiter::for('api-reserva-existente', function (Request $request) use ($limite, $porIp) {
             $codigo = $request->input('codigo');
@@ -97,32 +87,13 @@ class AppServiceProvider extends ServiceProvider
             $ip = (string) $request->ip();
 
             if (! $porIp()) {
-                return Limit::perMinute($limite('reserva_por_minuto_ip_codigo'))->by(self::chaveDeLimite('reserva-codigo', $codigo));
+                return Limit::perMinute($limite('reserva_por_minuto_ip_codigo'))->by(ChaveDeLimite::de('reserva-codigo', $codigo));
             }
 
             return [
-                Limit::perMinute($limite('reserva_por_minuto_ip_codigo'))->by(self::chaveDeLimite('reserva-ip-codigo', $ip, $codigo)),
-                Limit::perHour($limite('reserva_por_hora_ip'))->by(self::chaveDeLimite('reserva-ip', $ip)),
+                Limit::perMinute($limite('reserva_por_minuto_ip_codigo'))->by(ChaveDeLimite::de('reserva-ip-codigo', $ip, $codigo)),
+                Limit::perHour($limite('reserva_por_hora_ip'))->by(ChaveDeLimite::de('reserva-ip', $ip)),
             ];
         });
-    }
-
-    /**
-     * Chave de limite que nunca leva o valor cru (telefone, codigo, IP): HMAC
-     * SHA-256 com chave derivada do APP_KEY por HKDF, com rotulo proprio (a
-     * chave da aplicacao nao e usada direto e a derivada serve so a isto).
-     * O cache padrao e uma tabela do banco; sem APP_KEY, falha fechado.
-     */
-    private static function chaveDeLimite(string $rotulo, string ...$partes): string
-    {
-        $chave = (string) config('app.key');
-        $material = str_starts_with($chave, 'base64:') ? (string) base64_decode(substr($chave, 7), true) : $chave;
-        if ($material === '') {
-            throw new \RuntimeException('APP_KEY ausente: os limites da API nao podem ser calculados.');
-        }
-
-        $derivada = hash_hkdf('sha256', $material, 32, 'cleison.limites');
-
-        return $rotulo.':'.hash_hmac('sha256', implode("\0", $partes), $derivada);
     }
 }

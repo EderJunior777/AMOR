@@ -81,12 +81,50 @@ class LimitesApiTest extends ApiTestCase
         $this->segredos[] = '11912345678';
     }
 
-    public function test_criar_conta_tentativas_invalidas_tambem(): void
+    /**
+     * Achado #2 da Fase 5: quem sabe o telefone de alguem nao esgota o limite
+     * dessa pessoa com pedidos invalidos. O limite por telefone so conta
+     * reserva CRIADA; recusa de formato (FormRequest) ou de regra (dominio)
+     * nao consome o limite de ninguem.
+     */
+    public function test_dez_pedidos_invalidos_com_o_telefone_de_alguem_nao_impedem_essa_pessoa_de_reservar(): void
     {
         $this->limitar('criar_por_hora_telefone', 2);
 
+        foreach (range(1, 10) as $i) {
+            $invalido = match ($i % 4) {
+                0 => $this->corpo(['hora' => '25:00']),                // formato: FormRequest
+                1 => $this->corpo(['hora' => '10:10']),                // fora da grade: dominio
+                2 => $this->corpo(['data' => '2026-10-04']),           // passado: dominio
+                3 => $this->corpo(['servicos' => [999999]]),           // servico inexistente: dominio
+            };
+            $this->reservar($invalido, sprintf('chave-invalida-%08d', $i))->assertStatus(422);
+        }
+
+        $this->reservar($this->corpo(), 'chave-da-vitima-0000001')->assertCreated();
+    }
+
+    public function test_so_reserva_criada_consome_o_limite_do_telefone(): void
+    {
+        $this->limitar('criar_por_hora_telefone', 2);
+
+        $this->reservar($this->corpo(['hora' => '10:00']), 'chave-a-0123456789abcdef')->assertCreated();
+        // Repeticao idempotente e horario ocupado (409) nao contam.
+        foreach (range(1, 3) as $i) {
+            $this->reservar($this->corpo(['hora' => '10:00']), 'chave-a-0123456789abcdef')->assertOk();
+        }
+        $this->reservar($this->corpo(['hora' => '10:00']), 'chave-b-0123456789abcdef')->assertStatus(409);
+
+        $this->reservar($this->corpo(['hora' => '11:00']), 'chave-c-0123456789abcdef')->assertCreated();
+        $this->assert429($this->reservar($this->corpo(['hora' => '14:00']), 'chave-d-0123456789abcdef'));
+    }
+
+    public function test_por_ip_as_tentativas_invalidas_continuam_contando(): void
+    {
+        $this->limitar('criar_por_minuto_ip', 2);
+
         $this->reservar($this->corpo(['hora' => '10:10']), 'chave-a-0123456789abcdef')->assertStatus(422);
-        $this->reservar($this->corpo(['hora' => '10:10']), 'chave-b-0123456789abcdef')->assertStatus(422);
+        $this->reservar($this->corpo(['hora' => '25:00']), 'chave-b-0123456789abcdef')->assertStatus(422);
         $this->assert429($this->reservar($this->corpo(['hora' => '10:00']), 'chave-c-0123456789abcdef'));
     }
 
