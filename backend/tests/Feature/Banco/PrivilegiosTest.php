@@ -177,6 +177,11 @@ class PrivilegiosTest extends TestCase
         ]);
         $id = $this->novoAgendamento('10:00', '10:30');
         $outro = $this->novoProfissional('Outro');
+        // E1: agendamento do site so troca para profissional que atende o servico.
+        DB::table('profissional_servico')->insert([
+            'profissional_id' => $outro,
+            'servico_id' => DB::table('agendamento_itens')->where('agendamento_id', $id)->value('servico_id'),
+        ]);
 
         $this->comoAtor('operador', $operador);
         DB::table('agendamentos')->where('id', $id)->update([

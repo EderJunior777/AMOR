@@ -34,7 +34,18 @@ class ConcorrenciaTest extends TestCase
         Artisan::call('migrate', ['--force' => true, '--database' => 'pgsql_migracao']);
         $this->limpar();
         config(['database.connections.pgsql_b' => config('database.connections.pgsql')]);
-        $this->novoServico(); // usado pelos processos filhos
+        $this->servico = $this->novoServico(); // usado pelos processos filhos
+    }
+
+    private int $servico;
+
+    /** Profissional que atende o servico dos processos (E1: o site exige o vinculo). */
+    private function profissionalDoSite(string $nome = 'Profissional Teste'): int
+    {
+        $id = $this->novoProfissional($nome);
+        DB::table('profissional_servico')->insert(['profissional_id' => $id, 'servico_id' => $this->servico]);
+
+        return $id;
     }
 
     protected function tearDown(): void
@@ -110,7 +121,7 @@ class ConcorrenciaTest extends TestCase
 
     public function test_segunda_conexao_espera_a_primeira_e_perde_quando_ela_confirma(): void
     {
-        $ze = $this->novoProfissional('Ze');
+        $ze = $this->profissionalDoSite('Ze');
         $joao = $this->novoCliente('Joao', '+5511987654321');
         $ana = $this->novoCliente('Ana', '+5511911112222');
         $a = DB::connection();
@@ -137,7 +148,7 @@ class ConcorrenciaTest extends TestCase
 
     public function test_se_a_primeira_desiste_o_horario_fica_livre(): void
     {
-        $ze = $this->novoProfissional('Ze');
+        $ze = $this->profissionalDoSite('Ze');
         $joao = $this->novoCliente('Joao', '+5511987654321');
         $ana = $this->novoCliente('Ana', '+5511911112222');
 
@@ -151,7 +162,7 @@ class ConcorrenciaTest extends TestCase
 
     public function test_corrida_entre_processos_pelo_mesmo_horario(): void
     {
-        $ze = $this->novoProfissional('Ze');
+        $ze = $this->profissionalDoSite('Ze');
         $tentativas = [];
         foreach (range(1, 10) as $i) {
             $tentativas[] = ['agendamento', $ze, $this->novoCliente("Cliente {$i}", sprintf('+55119000000%02d', $i)), '14:00', '14:30'];
@@ -183,7 +194,7 @@ class ConcorrenciaTest extends TestCase
         // constraint de exclusao; a fila so troca deadlock por espera.
         $this->conexaoDono()->statement('ALTER TABLE ocupacoes_agenda DISABLE TRIGGER ocupacoes_fila_por_profissional');
 
-        $ze = $this->novoProfissional('Ze');
+        $ze = $this->profissionalDoSite('Ze');
         $tentativas = [];
         foreach (range(1, 8) as $i) {
             $tentativas[] = ['agendamento', $ze, $this->novoCliente("Cliente {$i}", sprintf('+55119000001%02d', $i)), '14:00', '14:30'];
@@ -214,7 +225,7 @@ class ConcorrenciaTest extends TestCase
 
     public function test_bloqueio_e_agendamentos_disputando_o_mesmo_periodo(): void
     {
-        $ze = $this->novoProfissional('Ze');
+        $ze = $this->profissionalDoSite('Ze');
         $tentativas = [['bloqueio', $ze, 0, '14:00', '15:00']];
         foreach (range(1, 5) as $i) {
             $tentativas[] = ['agendamento', $ze, $this->novoCliente("Cliente {$i}", sprintf('+55119000002%02d', $i)), '14:30', '15:00'];
@@ -237,8 +248,8 @@ class ConcorrenciaTest extends TestCase
 
     public function test_em_paralelo_horarios_encostados_e_profissionais_diferentes_passam(): void
     {
-        $ze = $this->novoProfissional('Ze');
-        $beto = $this->novoProfissional('Beto');
+        $ze = $this->profissionalDoSite('Ze');
+        $beto = $this->profissionalDoSite('Beto');
         $cliente = $this->novoCliente('Joao', '+5511987654321');
 
         $tentativas = [];
@@ -257,7 +268,7 @@ class ConcorrenciaTest extends TestCase
 
     public function test_agendamento_sem_servico_e_barrado_no_commit_de_verdade(): void
     {
-        $ze = $this->novoProfissional();
+        $ze = $this->profissionalDoSite();
         $cliente = $this->novoCliente();
 
         try {
