@@ -21,6 +21,7 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RuntimeException;
@@ -516,7 +517,10 @@ final class ReservarHorario
     /** Dentro da transacao auditada: revalida, cliente, endereco, agendamento e itens. */
     private function gravar(PedidoDeReserva $pedido, Canal $canal, ?User $operador, bool $encaixe): int
     {
-        ['reserva' => $reserva, 'catalogo' => $catalogo] = $this->preparar($pedido, $canal, $encaixe, travar: true);
+        ['estabelecimento' => $estabelecimento, 'reserva' => $reserva, 'catalogo' => $catalogo] = $this->preparar($pedido, $canal, $encaixe, travar: true);
+        if ($canal === Canal::Site) {
+            $this->exigirFolgaNoTetoDoSite($estabelecimento);
+        }
 
         $clienteId = $this->clienteDoTelefone($pedido);
         if ($canal === Canal::Site) {
@@ -563,6 +567,31 @@ final class ReservarHorario
         }
 
         return (int) $agendamento->getKey();
+    }
+
+    /**
+     * Achado #1c, freio de emergencia: no maximo cleison.reservas.teto_diario_do_site
+     * reservas CRIADAS pelo site no dia (de criacao, no fuso do
+     * estabelecimento), de qualquer telefone e em qualquer estado. Conta sem
+     * trava: sob disputa pode passar por algumas unidades, o que basta a um
+     * freio. O aviso no log leva so o teto.
+     *
+     * @throws AgendaSobrecarregada
+     */
+    private function exigirFolgaNoTetoDoSite(Estabelecimento $estabelecimento): void
+    {
+        $teto = self::inteiroPositivo('teto_diario_do_site', 'CLEISON_TETO_DIARIO_RESERVAS_SITE');
+        $inicioDoDia = CarbonImmutable::now($estabelecimento->fuso_horario)->startOfDay();
+        $criadasHoje = Agendamento::query()
+            ->where('origem', Canal::Site->origem())
+            ->where('created_at', '>=', $inicioDoDia)
+            ->where('created_at', '<', $inicioDoDia->addDay())
+            ->count();
+        if ($criadasHoje >= $teto) {
+            Log::warning('Teto diario de reservas do site atingido', ['teto' => $teto]);
+
+            throw new AgendaSobrecarregada;
+        }
     }
 
     /**

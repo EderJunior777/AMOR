@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Kernel;
+use App\Domain\Agenda\AgendaSobrecarregada;
 use App\Domain\Agenda\ReservaRecusada;
 use App\Http\Controllers\SaudeController;
 use App\Support\ErroDeBanco;
@@ -49,6 +50,13 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $exceptions->dontReport(ReservaRecusada::class);
         $exceptions->render(fn (ReservaRecusada $e, Request $request) => $daApi($request)
             ? response()->json(['mensagem' => $e->getMessage(), 'codigo' => $e->codigo], 422)
+            : null);
+
+        // Freio de emergencia do site (teto diario): 503 generico, sem dizer
+        // que e um teto. O aviso no log ja sai do dominio, sem dado do pedido.
+        $exceptions->dontReport(AgendaSobrecarregada::class);
+        $exceptions->render(fn (AgendaSobrecarregada $e, Request $request) => $daApi($request)
+            ? response()->json(['mensagem' => 'Servico temporariamente indisponivel. Tente novamente mais tarde.', 'codigo' => 'indisponivel'], 503)
             : null);
 
         $exceptions->render(fn (ValidationException $e, Request $request) => $daApi($request)

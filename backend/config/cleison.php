@@ -30,11 +30,15 @@ return [
      *     confirmado, inicio no futuro, de qualquer canal) que um telefone
      *     pode ter para o SITE aceitar mais uma. O operador nao tem esse
      *     limite. Inteiro >= 1.
+     *   teto_diario_do_site: freio de emergencia. Reservas criadas pelo site
+     *     no dia (fuso do estabelecimento), de todos os telefones; acima
+     *     disso a API responde 503 generico. Inteiro >= 1.
      * Valor invalido falha fechado (nada expira; o site nao reserva).
      */
     'reservas' => [
         'solicitado_expira_horas' => env('CLEISON_SOLICITADO_EXPIRA_HORAS', 12),
         'maximo_em_aberto_por_telefone' => env('CLEISON_MAXIMO_RESERVAS_EM_ABERTO_POR_TELEFONE', 2),
+        'teto_diario_do_site' => env('CLEISON_TETO_DIARIO_RESERVAS_SITE', 500),
     ],
 
     /*
