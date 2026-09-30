@@ -33,7 +33,8 @@ class LimiteDeReservasEmAbertoTest extends TestCase
         $this->app->instance(RepetirEmConflito::class, new RepetirEmConflito(esperar: false));
         $this->fixarRelogio();
         $this->montarAgendaDeReserva();
-        config(['cleison.reservas.maximo_em_aberto_por_telefone' => 2]);
+        // Sem override: os testes abaixo rodam com o limite PADRAO (2), o do
+        // config/cleison.php. So os que dizem o contrario trocam o valor.
     }
 
     protected function tearDown(): void
@@ -73,6 +74,16 @@ class LimiteDeReservasEmAbertoTest extends TestCase
 
         $this->assertSame(2, DB::table('agendamentos')->count());
         $this->assertSame(2, DB::table('ocupacoes_agenda')->count());
+    }
+
+    public function test_padroes_dos_freios_no_arquivo_de_config(): void
+    {
+        $arquivo = require config_path('cleison.php');
+
+        $this->assertSame(2, $arquivo['reservas']['maximo_em_aberto_por_telefone']);
+        $this->assertSame(12, $arquivo['reservas']['solicitado_expira_horas']);
+        $this->assertSame(500, $arquivo['reservas']['teto_diario_do_site']);
+        $this->assertSame(2, config('cleison.reservas.maximo_em_aberto_por_telefone'), 'o ambiente de teste nao troca o padrao');
     }
 
     public function test_mensagem_da_recusa_e_fixa_e_sem_dado(): void

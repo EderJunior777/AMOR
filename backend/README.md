@@ -258,6 +258,13 @@ Por isso **`API_ATRAS_DE_PROXY` é obrigatória em produção** (`true` ou
   tem o próprio limite (`LimitesPorIpAtrasDeProxyTest`).
 - **Cliente chegando direto:** `API_ATRAS_DE_PROXY=false`.
 
+**Limitação conhecida (a resolver na etapa 6):** a Netlify **não publica
+uma lista fixa** de IPs de saída, então `TRUSTED_PROXIES` por IP é
+inviável atrás dela. Alternativa a avaliar (não implementada): o redirect
+`/api/*` da Netlify envia um **cabeçalho secreto** (`headers` no
+`[[redirects]]` do `netlify.toml`), e o backend só confia no
+`X-Forwarded-For` quando esse cabeçalho confere.
+
 `API_LIMITE_POR_IP=false` continua existindo como interruptor para quando o
 IP não for confiável por outro motivo. Desligado, ficam o limite **por
 telefone** (criação), o **por código** (consultar/cancelar/remarcar) e, em
@@ -405,8 +412,11 @@ Respostas ao achado #1 da revisão de segurança da Fase 5 (reservas
 | Reservas em aberto por telefone | `CLEISON_MAXIMO_RESERVAS_EM_ABERTO_POR_TELEFONE` (2) | O site recusa (422 `limite_de_reservas_em_aberto`) quem já tem N reservas `solicitado`/`confirmado` com início no futuro, de qualquer canal. Contagem dentro da transação, com o cliente travado (`FOR UPDATE`): pedidos simultâneos do mesmo telefone entram em fila. O operador não tem esse limite. |
 | Teto diário do site | `CLEISON_TETO_DIARIO_RESERVAS_SITE` (500) | Freio de emergência: reservas **criadas** pelo site no dia (fuso do estabelecimento), somando todos os telefones. Acima disso, 503 genérico (`indisponivel`), sem dizer que é um teto, e um aviso no log só com o teto. Conta sem trava: sob disputa pode passar por algumas unidades. |
 
-**O scheduler precisa rodar:** `php artisan schedule:run` no cron a cada
-minuto. Sem ele, nada expira.
+**A expiração depende do scheduler:** `php artisan schedule:run` no cron a
+cada minuto. Se ele parar, nenhuma reserva `solicitado` expira e os
+horários ficam presos até alguém confirmar ou cancelar. A etapa 6 precisa
+de um **alerta** para quando o `schedule:run` parar (ex.: o comando grava
+um "último sinal" e o monitoramento avisa se ele envelhecer).
 
 **Pré-requisito para ligar a flag do site em produção (etapa 6):**
 verificação de posse do telefone por código (WhatsApp) **ou** captcha no
@@ -528,8 +538,12 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
 11. **Antes de ligar a flag do site em produção (etapa 6):** verificação do
     telefone por código (WhatsApp) ou captcha no pedido de reserva
     (pré-requisito, ver "Freios da reserva pelo site").
-12. **Cron do scheduler:** `php artisan schedule:run` a cada minuto no
-    servidor. Sem ele, reservas `solicitado` não expiram.
+12. **Cron do scheduler e alerta (etapa 6):** `php artisan schedule:run` a
+    cada minuto no servidor, com alerta se ele parar. Sem ele, reservas
+    `solicitado` não expiram.
+13. **Confiança no `X-Forwarded-For` atrás da Netlify (etapa 6):** lista
+    fixa de IPs é inviável; avaliar o cabeçalho secreto no redirect
+    `/api/*` (ver "Atrás da Netlify").
 
 ## Mapa
 

@@ -97,6 +97,10 @@ Netlify").
 **Pré-requisito para ligar a flag do site em produção:** verificação do
 telefone por código (WhatsApp) ou captcha no pedido de reserva
 (`backend/README.md`, "Freios da reserva pelo site").
-Cron do scheduler (`php artisan schedule:run` a cada minuto): sem ele,
-reservas `solicitado` não expiram.
+Cron do scheduler (`php artisan schedule:run` a cada minuto) **com alerta
+se ele parar**: sem ele, reservas `solicitado` não expiram.
+Atrás da Netlify, `TRUSTED_PROXIES` por IP é inviável (a Netlify não
+publica lista fixa). Alternativa a avaliar: o redirect `/api/*` envia um
+cabeçalho secreto (`headers` no `[[redirects]]` do `netlify.toml`) e o
+backend só confia no `X-Forwarded-For` quando ele confere. Não implementado.
 Limitador da API na tabela `cache` do banco: se o volume crescer, Redis.
