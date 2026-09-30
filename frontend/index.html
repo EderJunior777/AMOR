@@ -269,6 +269,45 @@
   </div>
 </section>
 
+<!-- ====================================================== minha reserva -->
+<!-- So com a agenda nova ligada (CONFIG.agendaNova, SO HOMOLOGACAO). -->
+<section class="secao" id="minha-reserva" hidden style="padding-top:0">
+  <div class="envelope">
+    <span class="rotulo">Minha reserva</span>
+    <h2>Consultar, cancelar ou remarcar</h2>
+    <p class="campo-nota">Use o codigo que apareceu quando voce reservou e o mesmo telefone.</p>
+
+    <div class="campos">
+      <label class="campo campo-largo">
+        <span>Codigo da reserva</span>
+        <input type="text" id="minha-codigo" autocomplete="off" spellcheck="false" maxlength="100">
+      </label>
+      <label class="campo">
+        <span>WhatsApp</span>
+        <input type="tel" id="minha-telefone" autocomplete="tel" placeholder="(11) 98765-4321" maxlength="20">
+      </label>
+      <label class="campo">
+        <span>Novo dia <em>(para remarcar)</em></span>
+        <input type="date" id="minha-data">
+      </label>
+      <label class="campo">
+        <span>Novo horario <em>(para remarcar)</em></span>
+        <input type="time" id="minha-hora" step="1800">
+      </label>
+    </div>
+
+    <div class="memoria-acoes">
+      <button type="button" class="botao botao-pequeno" id="btn-minha-consultar"><span>Consultar</span></button>
+      <button type="button" class="botao botao-pequeno" id="btn-minha-remarcar"><span>Remarcar</span></button>
+      <button type="button" class="botao botao-pequeno" id="btn-minha-cancelar"><span>Cancelar reserva</span></button>
+    </div>
+
+    <p class="erro" id="minha-erro" hidden></p>
+    <p class="campo-nota" id="minha-aviso"></p>
+    <div class="recibo-dados" id="minha-detalhe"></div>
+  </div>
+</section>
+
 <!-- ========================================================== domicilio -->
 <section class="secao" id="domicilio-secao" style="padding-top:0">
   <div class="envelope">
@@ -363,6 +402,7 @@
 </div>
 
 <script src="assets/config.js"></script>
+<script src="assets/agenda-v1.js"></script>
 <script src="assets/app.js"></script>
 <script>
   if ("serviceWorker" in navigator) {

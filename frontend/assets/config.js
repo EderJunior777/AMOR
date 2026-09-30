@@ -57,7 +57,14 @@ const CONFIG = {
     { id: "degrade",      nome: "Degrade",         preco: 50, duracao: 60, descricao: "Fade caprichado, do zero ao topo." },
     { id: "pezinho",      nome: "Pezinho",         preco: 20, duracao: 30, descricao: "So o acabamento pra segurar a semana." },
     { id: "infantil",     nome: "Corte infantil",  preco: 35, duracao: 30, descricao: "Paciencia inclusa." }
-  ]
+  ],
+
+  // ---- Agenda nova (SO PARA HOMOLOGACAO) ---------------------------------
+  // false (padrao): o site usa a agenda de hoje, sem nenhuma mudanca.
+  // true: o site usa a API nova (backend Laravel, em /api/v1). ATENCAO: o
+  // painel do barbeiro (agenda.html) NAO mostra as reservas feitas assim.
+  // Nao ligue no site publicado. Ver README.md desta pasta.
+  agendaNova: { ligada: false, api: "/api/v1" }
 };
 
 /* Permite que a funcao da agenda (no servidor) leia exatamente este mesmo

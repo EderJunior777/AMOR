@@ -10,7 +10,7 @@
    funcionar sem internet.
    ========================================================================= */
 
-const VERSAO = "barbearia-v1";
+const VERSAO = "barbearia-v2";
 
 const ESSENCIAIS = [
   "./",
@@ -19,6 +19,7 @@ const ESSENCIAIS = [
   "./assets/styles.css",
   "./assets/fontes.css",
   "./assets/config.js",
+  "./assets/agenda-v1.js",
   "./assets/app.js",
   "./assets/admin.js",
   "./assets/icone.svg",
@@ -61,7 +62,8 @@ self.addEventListener("fetch", function (evento) {
   // So mexemos em GET do proprio site.
   if (pedido.method !== "GET" || url.origin !== self.location.origin) return;
 
-  // A agenda e os dados de cliente sempre vem da rede. Sem excecao.
+  // A agenda (a de hoje e a nova, /api/v1) e os dados de cliente sempre vem
+  // da rede. Sem excecao (testes/sw.test.mjs).
   if (url.pathname.indexOf("/api/") === 0) return;
 
   // Navegacao: tenta a rede (pra pegar o site atualizado) e, se estiver

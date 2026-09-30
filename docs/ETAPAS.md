@@ -67,6 +67,17 @@ Detalhes, comandos e limitações: [REVISAO-ETAPA-1.md](REVISAO-ETAPA-1.md).
   (mesma reserva), reutilizar a chave com outro corpo (conflito), datas
   inexistentes.
 
+### Etapa 2: integração do site (Fase 7)
+
+> **⚠️ A agenda nova no site é SÓ PARA HOMOLOGAÇÃO.** A flag
+> `CONFIG.agendaNova.ligada` (`frontend/assets/config.js`) vem **desligada**,
+> e assim o site é idêntico ao de hoje (Blobs), com os testes legados
+> intactos. **Ligada, o painel antigo do barbeiro (`agenda.html`) NÃO mostra
+> as reservas da API**: não há gravação dupla nem sincronização entre os
+> dois mundos. Não ligar no site publicado antes da etapa 6 (troca única da
+> origem de gravação, importação dos Blobs) e do painel da etapa 3.
+> Detalhes: [`frontend/README.md`](../frontend/README.md).
+
 ## Etapa 3: administração
 Login individual, sessão segura, revogação, limites de tentativa, MFA por
 usuário (cada um cadastra o seu), recuperação segura, papéis no servidor

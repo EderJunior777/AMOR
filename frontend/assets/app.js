@@ -12,6 +12,15 @@
   var API = "/api/agenda";
   var CHAVE_LOCAL = "agenda-demo";
 
+  // Agenda NOVA (API v1 do backend, assets/agenda-v1.js): SO HOMOLOGACAO.
+  // Desligada (padrao), nada que depende de "nova" roda e o site e o de
+  // hoje (Blobs). Ligada, o site fala SO com a API nova: nunca com
+  // /api/agenda nem /api/cliente (sem gravacao dupla), e o painel antigo do
+  // barbeiro nao ve estas reservas.
+  var nova = !!(typeof CONFIG !== "undefined" && CONFIG.agendaNova && CONFIG.agendaNova.ligada &&
+    typeof window.AgendaV1 !== "undefined");
+  var agendaNova = nova ? window.AgendaV1.criar({ base: CONFIG.agendaNova.api || "/api/v1" }) : null;
+
   var estado = {
     servico: null,
     local: "barbearia",
@@ -21,7 +30,12 @@
     hora: null,
     ocupados: [],
     modoLocal: false,
-    enviando: false
+    enviando: false,
+    // So agenda nova:
+    livresApi: [],      // horarios livres que a API devolveu para o dia
+    pedidoHoras: 0,     // descarta resposta atrasada de um dia ja trocado
+    tentativa: null,    // tentativa de envio em aberto (Idempotency-Key)
+    semAgenda: false    // catalogo da API nao carregou
   };
 
   var el = function (id) { return document.getElementById(id); };
@@ -70,9 +84,14 @@
     });
   }
 
+  function taxaAtual() {
+    if (nova && estado.regiao && estado.regiao.taxa != null) return Number(estado.regiao.taxa);
+    return Number(CONFIG.taxaDomicilio || 0);
+  }
+
   function totalDoAgendamento() {
     if (!estado.servico) return 0;
-    var taxa = estado.local === "domicilio" ? Number(CONFIG.taxaDomicilio || 0) : 0;
+    var taxa = estado.local === "domicilio" ? taxaAtual() : 0;
     return Number(estado.servico.preco) + taxa;
   }
 
@@ -92,6 +111,17 @@
   }
 
   function ativarModoLocal() {
+    if (nova) {
+      // Agenda nova: nada de modo demonstracao (reserva so no aparelho).
+      estado.offline = navigator.onLine === false;
+      if (estado.offline) {
+        el("aviso-local").textContent = "Voce esta sem internet. Da pra ver os servicos e os precos, " +
+          "mas pra reservar um horario de verdade precisa de conexao.";
+        el("aviso-local").hidden = false;
+      }
+      atualizarBotaoConfirmar();
+      return;
+    }
     if (estado.modoLocal) return;
     estado.modoLocal = true;
 
@@ -116,9 +146,10 @@
     var botao = el("botao-confirmar");
     if (!botao) return;
 
-    botao.disabled = !!estado.offline;
+    botao.disabled = !!estado.offline || !!estado.semAgenda;
     botao.querySelector("span").textContent = estado.offline
       ? "Sem internet - nao da pra reservar"
+      : estado.semAgenda ? "Agenda fora do ar - tente mais tarde"
       : "Confirmar e ir para o WhatsApp";
   }
 
@@ -458,8 +489,59 @@
     }
   }
 
+  /* ------------------------------------------------ agenda nova (API v1) */
+
+  // Servico com a menor duracao (para os numeros da capa).
+  function servicoMaisCurto() {
+    return CONFIG.servicos.reduce(function (menor, s) {
+      return !menor || Number(s.duracao) < Number(menor.duracao) ? s : menor;
+    }, null);
+  }
+
+  // Horarios livres de um dia, perguntados a API (ela confere expediente,
+  // antecedencia, deslocamento e ocupacao). O id vem do catalogo da API.
+  function horariosDaApi(iso, servico, local, regiao) {
+    if (!servico || !servico.apiId) {
+      return Promise.reject({ mensagem: "A agenda esta fora do ar. Recarregue a pagina em instantes." });
+    }
+    return agendaNova.profissionalPara([servico.apiId]).then(function (profissional) {
+      return agendaNova.horarios({
+        data: iso,
+        servicoIds: [servico.apiId],
+        profissionalId: profissional,
+        modalidade: local,
+        regiaoId: regiao ? regiao.apiId : null
+      });
+    });
+  }
+
+  function carregarHorariosDaApi() {
+    if (estado.local === "domicilio" && !estado.regiao) return;
+
+    var caixa = el("lista-horas");
+    var esqueleto = '<div class="horas">';
+    for (var i = 0; i < 8; i++) esqueleto += '<div class="esqueleto"></div>';
+    caixa.innerHTML = esqueleto + "</div>";
+
+    var pedido = ++estado.pedidoHoras;
+    horariosDaApi(estado.dia, estado.servico, estado.local, estado.regiao).then(function (livres) {
+      if (pedido !== estado.pedidoHoras) return;
+      estado.livresApi = livres;
+      desenharHorarios();
+    }, function (falha) {
+      if (pedido !== estado.pedidoHoras) return;
+      caixa.textContent = "";
+      var aviso = document.createElement("div");
+      aviso.className = "vazio";
+      aviso.textContent = (falha && falha.mensagem) || window.AgendaV1.MENSAGENS.erro;
+      caixa.appendChild(aviso);
+      estadoDoPasso("passo-dados", false);
+    });
+  }
+
   function carregarHorarios() {
     if (!estado.servico || !estado.dia) return;
+    if (nova) return carregarHorariosDaApi();
 
     var caixa = el("lista-horas");
     var esqueleto = '<div class="horas">';
@@ -475,7 +557,7 @@
   // Manha, tarde e noite separados: 24 botoes numa grade unica cansam a vista.
   function desenharHorarios() {
     var caixa = el("lista-horas");
-    var livres = horariosLivres(
+    var livres = nova ? estado.livresApi : horariosLivres(
       Number(estado.servico.duracao), estado.dia, estado.ocupados, deslocamentoAtual()
     );
 
@@ -565,8 +647,8 @@
       : "A escolher");
     html += linhaComanda("Valor do servico", dinheiro(estado.servico.preco));
 
-    if (estado.local === "domicilio" && Number(CONFIG.taxaDomicilio)) {
-      html += linhaComanda("Taxa de domicilio", dinheiro(CONFIG.taxaDomicilio));
+    if (estado.local === "domicilio" && taxaAtual()) {
+      html += linhaComanda("Taxa de domicilio", dinheiro(taxaAtual()));
     }
 
     html += '<div class="comanda-picote"></div>';
@@ -679,6 +761,8 @@
 
     mostrarErro("");
 
+    if (nova) return enviarParaAgendaNova({ nome: nome, telefone: telefone, endereco: endereco, observacao: observacao });
+
     var dados = {
       dia: estado.dia,
       hora: estado.hora,
@@ -724,6 +808,193 @@
         estado.enviando = false;
         atualizarBotaoConfirmar();
       });
+  }
+
+  // Uma tentativa de envio = uma Idempotency-Key. Sem resposta (rede), a
+  // tentativa fica em aberto e reenviar o MESMO pedido usa a mesma chave;
+  // qualquer resposta da API encerra a tentativa.
+  function enviarParaAgendaNova(form) {
+    estado.enviando = true;
+    var botao = el("botao-confirmar");
+    botao.disabled = true;
+    botao.querySelector("span").textContent = "Reservando seu horario...";
+
+    var servico = estado.servico;
+    agendaNova.profissionalPara([servico.apiId])
+      .then(function (profissional) {
+        var corpo = {
+          servicos: [servico.apiId],
+          profissional_id: profissional,
+          data: estado.dia,
+          hora: estado.hora,
+          modalidade: estado.local,
+          cliente: { nome: form.nome, telefone: form.telefone },
+          observacao: form.observacao || null
+        };
+        if (estado.local === "domicilio") {
+          corpo.regiao_id = estado.regiao ? estado.regiao.apiId : null;
+          corpo.endereco = { logradouro: form.endereco };
+        }
+        estado.tentativa = window.AgendaV1.tentativaPara(estado.tentativa, corpo);
+        return agendaNova.reservar(corpo, estado.tentativa);
+      })
+      .then(function (resultado) {
+        estado.tentativa = null;
+        mostrarSucessoDaAgendaNova(resultado.reserva, form);
+      }, function (falha) {
+        falha = falha || {};
+        if (falha.tipo !== "rede") estado.tentativa = null;
+
+        if (falha.tipo === "conflito") {
+          mostrarErro(falha.mensagem);
+          estado.hora = null;
+          estadoDoPasso("passo-dados", false);
+          ativar("passo-hora");
+          carregarHorarios();
+          atualizarBarra();
+          irPara("passo-hora");
+        } else {
+          mostrarErro(falha.mensagem || window.AgendaV1.MENSAGENS.erro);
+        }
+      })
+      .then(function () {
+        estado.enviando = false;
+        atualizarBotaoConfirmar();
+      });
+  }
+
+  // Linha "rotulo / valor" do recibo, so com textContent.
+  function linhaDeRecibo(rotulo, valor) {
+    var linha = document.createElement("div");
+    linha.className = "recibo-linha";
+    var a = document.createElement("span");
+    a.textContent = rotulo;
+    var b = document.createElement("span");
+    b.textContent = valor;
+    linha.appendChild(a);
+    linha.appendChild(b);
+    return linha;
+  }
+
+  var ESTADOS_DA_RESERVA = {
+    solicitado: "Aguardando confirmacao do barbeiro",
+    confirmado: "Confirmada",
+    em_atendimento: "Em atendimento",
+    concluido: "Concluida",
+    cancelado: "Cancelada",
+    nao_compareceu: "Nao compareceu"
+  };
+
+  function linhasDaReserva(caixa, reserva) {
+    var nomes = (reserva.servicos || []).map(function (s) { return s.nome; }).join(" + ");
+    var duracao = (reserva.servicos || []).reduce(function (t, s) { return t + Number(s.duracao_minutos); }, 0);
+    var fim = paraHora(emMinutos(reserva.hora) + duracao);
+
+    caixa.appendChild(linhaDeRecibo("Servico", nomes));
+    caixa.appendChild(linhaDeRecibo("Quando", dataPorExtenso(reserva.data) + ", " + reserva.hora + " as " + fim));
+    caixa.appendChild(linhaDeRecibo("Local", reserva.modalidade === "domicilio"
+      ? "Na sua casa" + (reserva.regiao_nome ? " - " + reserva.regiao_nome : "")
+      : "Na barbearia"));
+    caixa.appendChild(linhaDeRecibo("Total", dinheiro(Number(reserva.total_centavos) / 100)));
+    caixa.appendChild(linhaDeRecibo("Situacao", ESTADOS_DA_RESERVA[reserva.estado] || reserva.estado));
+    caixa.appendChild(linhaDeRecibo("Codigo da reserva", reserva.codigo));
+    return { nomes: nomes, duracao: duracao };
+  }
+
+  // Sucesso na agenda nova: mostra o codigo (credencial para consultar,
+  // cancelar e remarcar) e NAO pula sozinho para o WhatsApp, senao o
+  // cliente nao ve o codigo.
+  function mostrarSucessoDaAgendaNova(reserva, form) {
+    var caixa = el("sucesso-detalhe");
+    caixa.textContent = "";
+    var resumo = linhasDaReserva(caixa, reserva);
+
+    var tela = el("tela-sucesso");
+    tela.querySelector("h2").textContent = "Pedido de horario enviado";
+    tela.querySelector(".recibo-sub").textContent = "O horario fica guardado no seu nome enquanto o barbeiro confirma.";
+    tela.querySelector(".recibo-nota").textContent = "Guarde o codigo da reserva: com ele e o mesmo telefone da pra " +
+      "consultar, cancelar ou remarcar em \"Minha reserva\", mais abaixo na pagina.";
+
+    el("link-zap").href = montarMensagem({
+      servico: resumo.nomes,
+      duracao: resumo.duracao,
+      dia: reserva.data,
+      hora: reserva.hora,
+      local: reserva.modalidade,
+      endereco: form.endereco,
+      regiaoNome: reserva.regiao_nome,
+      nome: form.nome,
+      telefone: form.telefone,
+      observacao: form.observacao,
+      total: Number(reserva.total_centavos) / 100
+    });
+    tela.hidden = false;
+    esconderBarra();
+
+    if (el("minha-codigo")) el("minha-codigo").value = reserva.codigo;
+    if (el("minha-telefone")) el("minha-telefone").value = form.telefone;
+  }
+
+  // Consultar, cancelar e remarcar por codigo + telefone (so agenda nova).
+  function ligarMinhaReserva() {
+    var secao = el("minha-reserva");
+    if (!secao) return;
+    secao.hidden = false;
+
+    el("minha-telefone").addEventListener("input", function (e) {
+      e.target.value = mascaraTelefone(e.target.value);
+    });
+
+    function avisar(erro, aviso) {
+      el("minha-erro").textContent = erro || "";
+      el("minha-erro").hidden = !erro;
+      el("minha-aviso").textContent = aviso || "";
+    }
+
+    function acao(id, executar) {
+      var botao = el(id);
+      botao.addEventListener("click", function () {
+        var codigo = el("minha-codigo").value.trim();
+        var telefone = el("minha-telefone").value.trim();
+        if (!codigo || telefone.replace(/\D/g, "").length < 10) {
+          return avisar("Informe o codigo da reserva e o telefone com DDD.");
+        }
+        avisar("");
+        botao.disabled = true;
+        Promise.resolve()
+          .then(function () { return executar(codigo, telefone); })
+          .then(function (resultado) {
+            if (!resultado) return;
+            var caixa = el("minha-detalhe");
+            caixa.textContent = "";
+            linhasDaReserva(caixa, resultado.reserva);
+            avisar("", resultado.aviso);
+          }, function (falha) {
+            avisar((falha && falha.mensagem) || window.AgendaV1.MENSAGENS.erro);
+          })
+          .then(function () { botao.disabled = false; });
+      });
+    }
+
+    acao("btn-minha-consultar", function (codigo, telefone) {
+      return agendaNova.consultar(codigo, telefone).then(function (r) { return { reserva: r }; });
+    });
+
+    acao("btn-minha-remarcar", function (codigo, telefone) {
+      var dia = el("minha-data").value;
+      var hora = el("minha-hora").value;
+      if (!dia || !hora) throw { mensagem: "Escolha o novo dia e o novo horario." };
+      return agendaNova.remarcar(codigo, telefone, dia, hora).then(function (r) {
+        return { reserva: r, aviso: "Reserva remarcada." };
+      });
+    });
+
+    acao("btn-minha-cancelar", function (codigo, telefone) {
+      if (!window.confirm("Cancelar esta reserva?")) return null;
+      return agendaNova.cancelar(codigo, telefone).then(function (r) {
+        return { reserva: r, aviso: "Reserva cancelada." };
+      });
+    });
   }
 
   function mostrarSucesso(dados) {
@@ -1002,6 +1273,7 @@
   // Se hoje ja acabou, mostra o de amanha - "0 livres hoje" as 22h nao
   // informa nada, so desanima quem chegou no site.
   function contarLivresHoje() {
+    if (nova) return contarLivresHojeNaApi();
     var menor = CONFIG.servicos.reduce(function (m, s) {
       return Math.min(m, Number(s.duracao));
     }, Infinity);
@@ -1025,6 +1297,24 @@
     });
   }
 
+  function contarLivresHojeNaApi() {
+    var servico = servicoMaisCurto();
+    var nenhum = function () { return []; };
+    var amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+
+    horariosDaApi(paraISO(new Date()), servico, "barbearia", null).then(null, nenhum).then(function (livres) {
+      if (livres.length) {
+        el("dado-livres").textContent = livres.length;
+        return;
+      }
+      return horariosDaApi(paraISO(amanha), servico, "barbearia", null).then(null, nenhum).then(function (deAmanha) {
+        el("dado-livres").textContent = deAmanha.length;
+        el("dado-livres-rotulo").textContent = "Livres amanha";
+      });
+    });
+  }
+
   // Cartao da capa: os proximos horarios livres de verdade, varrendo os
   // dias para frente ate achar alguns. Clicar ja escolhe aquele dia.
   function mostrarProximos() {
@@ -1043,8 +1333,11 @@
       if (fechados.indexOf(data.getDay()) !== -1) return varrer(passo + 1);
 
       var iso = paraISO(data);
-      return buscarOcupados(iso).then(function (ocupados) {
-        horariosLivres(menor, iso, ocupados).slice(0, 4 - achados.length)
+      var livresDoDia = nova
+        ? horariosDaApi(iso, servicoMaisCurto(), "barbearia", null).then(null, function () { return []; })
+        : buscarOcupados(iso).then(function (ocupados) { return horariosLivres(menor, iso, ocupados); });
+      return livresDoDia.then(function (livres) {
+        livres.slice(0, 4 - achados.length)
           .forEach(function (hora) {
             achados.push({ dia: iso, hora: hora, hoje: passo === 0 });
           });
@@ -1166,8 +1459,46 @@
     }
   }
 
-  function iniciar() {
-    preencherTextos();
+  // Catalogo da API: o slug do config.js vira o id da API; preco e duracao
+  // passam a ser os do servidor; servico ou regiao sem par na API somem.
+  function prepararAgendaNova() {
+    return agendaNova.catalogo().then(function (cat) {
+      CONFIG.servicos = CONFIG.servicos.filter(function (s) { return cat.servicos[s.id]; }).map(function (s) {
+        var daApi = cat.servicos[s.id];
+        s.apiId = daApi.id;
+        s.preco = Number(daApi.preco_centavos) / 100;
+        s.duracao = Number(daApi.duracao_minutos);
+        return s;
+      });
+      CONFIG.regioes = (CONFIG.regioes || []).filter(function (r) { return cat.regioes[r.id]; }).map(function (r) {
+        var daApi = cat.regioes[r.id];
+        r.apiId = daApi.id;
+        r.taxa = Number(daApi.taxa_centavos) / 100;
+        return r;
+      });
+      if (!CONFIG.regioes.length) CONFIG.domicilioAtivo = false;
+    });
+  }
+
+  function iniciarAgendaNova() {
+    prepararAgendaNova().then(function () {
+      preencherTextos();
+      montarTela();
+      ligarMinhaReserva();
+      contarLivresHoje();
+      mostrarProximos();
+    }, function () {
+      estado.semAgenda = true;
+      preencherTextos();
+      montarTela();
+      ligarMinhaReserva();
+      el("aviso-local").textContent = "A agenda nao respondeu agora. Tente de novo em instantes.";
+      el("aviso-local").hidden = false;
+      atualizarBotaoConfirmar();
+    });
+  }
+
+  function montarTela() {
     desenharServicos();
     desenharLocal();
     desenharRegioes();
@@ -1186,6 +1517,13 @@
 
     el("form-dados").addEventListener("submit", enviar);
     el("botao-novo").addEventListener("click", function () { window.location.reload(); });
+  }
+
+  function iniciar() {
+    if (nova) return iniciarAgendaNova();
+
+    preencherTextos();
+    montarTela();
 
     // Bate na agenda uma vez pra saber se o servidor esta de pe e
     // ja aproveita pra contar quantos horarios sobraram hoje.
