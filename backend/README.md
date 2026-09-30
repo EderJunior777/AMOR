@@ -220,7 +220,9 @@ houver:
   `require`/`verify-ca`/`verify-full` (a `DB_URL` também é lida);
 - senha do papel dono presente, no config (inclusive via `DB_MIGRACAO_URL`)
   ou no ambiente do processo;
-- `TRUSTED_PROXIES` com curinga ou faixa ampla demais (`/0`, ou IPv4 mais largo que `/8`).
+- `TRUSTED_PROXIES` com curinga ou faixa ampla demais (`/0`, ou IPv4 mais largo que `/8`);
+- `API_ATRAS_DE_PROXY` ausente ou diferente de `true`/`false` (é obrigatória,
+  sem padrão), ou `true` com `TRUSTED_PROXIES` vazio.
 
 **Onde a trava vale:** em processos que **atendem HTTP**, ou seja,
 requisições web e os comandos `artisan serve`/`octane:*`. Os demais
@@ -241,22 +243,35 @@ recusado em produção.
 #### Atrás da Netlify (site chamando `/api/*` na mesma origem)
 
 Com o proxy `/api/*` da Netlify, **toda** requisição chega ao backend com o
-IP da Netlify. Os limites da API por IP (`API_LIMITE_GERAL_POR_MINUTO`,
-`API_LIMITE_CRIAR_POR_MINUTO_IP`, `API_LIMITE_RESERVA_POR_*`) passam então a
-valer para todos os clientes juntos: um único abusador bloqueia o site
-inteiro. Em produção, uma das duas, sem meio-termo:
+IP da Netlify. Sem `TRUSTED_PROXIES`, os limites da API por IP
+(`API_LIMITE_GERAL_POR_MINUTO`, `API_LIMITE_CRIAR_POR_MINUTO_IP`,
+`API_LIMITE_RESERVA_POR_*`) valeriam para todos os clientes juntos: um único
+abusador bloquearia o site inteiro.
 
-1. **`TRUSTED_PROXIES` certo:** só os endereços de saída do proxy (faixas
-   publicadas pelo provedor, nunca `*` nem faixa ampla). Aí o IP do cliente
-   vem do `X-Forwarded-For` e cada cliente tem o próprio limite
-   (`LimitesPorIpAtrasDeProxyTest`).
-2. **Se não der para garantir o item 1:** `API_LIMITE_POR_IP=false`. O
-   limite por IP é desligado e ficam só o **por telefone** (criação de
-   reserva) e o **por código** (consultar/cancelar/remarcar)
-   (`LimitesSemIpApiTest`).
+Por isso **`API_ATRAS_DE_PROXY` é obrigatória em produção** (`true` ou
+`false`, sem padrão), e a trava de boot recusa subir sem ela ou com
+`API_ATRAS_DE_PROXY=true` e `TRUSTED_PROXIES` vazio:
 
-Nunca deixe `API_LIMITE_POR_IP=true` com `TRUSTED_PROXIES` vazio atrás de
-proxy. Configurar e conferir isso é item da etapa 6 (implantação).
+- **Atrás da Netlify:** `API_ATRAS_DE_PROXY=true` e `TRUSTED_PROXIES` só com
+  os endereços de saída do proxy (faixas publicadas pelo provedor, nunca `*`
+  nem faixa ampla). O IP do cliente vem do `X-Forwarded-For` e cada cliente
+  tem o próprio limite (`LimitesPorIpAtrasDeProxyTest`).
+- **Cliente chegando direto:** `API_ATRAS_DE_PROXY=false`.
+
+`API_LIMITE_POR_IP=false` continua existindo como interruptor para quando o
+IP não for confiável por outro motivo. Desligado, ficam o limite **por
+telefone** (criação), o **por código** (consultar/cancelar/remarcar) e, em
+toda rota, um **limite global alto por rota**
+(`API_LIMITE_GLOBAL_POR_MINUTO_POR_ROTA`, padrão 600/min, todos os clientes
+juntos), para que catálogo e disponibilidade nunca fiquem sem freio
+(`LimitesSemIpApiTest`). Configurar e conferir tudo isso é item da etapa 6
+(implantação).
+
+O limite **por telefone** da criação só conta reserva **criada**: fica no
+`ReservaController`, depois da validação. Recusa de formato ou de regra
+(422), horário ocupado (409) e repetição idempotente não consomem o limite
+de ninguém; quem sabe o telefone de alguém não esgota o limite dessa pessoa
+(`LimitesApiTest`). Por IP, toda tentativa conta, inclusive a inválida.
 
 ## Runbook: migração só para frente
 
@@ -378,6 +393,38 @@ Quando o prazo for decidido (responsável + jurídico):
 
 Ver `config/cleison.php` e `routes/console.php`.
 
+## Freios da reserva pelo site
+
+Respostas ao achado #1 da revisão de segurança da Fase 5 (reservas
+`solicitado` segurando horário sem prazo). Valores em `config/cleison.php`
+(`reservas`); inteiro inválido falha fechado.
+
+| Freio | Variável (padrão) | Comportamento |
+|---|---|---|
+| Expiração | `CLEISON_SOLICITADO_EXPIRA_HORAS` (12) | `solicitado` não confirmado vira `cancelado` depois de N horas da criação **ou** quando o início chega, o que vier primeiro. Ator `sistema`, motivo `expirado` no evento. Comando `cleison:expirar-solicitados`, agendado a cada 5 minutos, pelo domínio (`ReservarHorario::expirarSolicitados`), com a linha travada. |
+| Reservas em aberto por telefone | `CLEISON_MAXIMO_RESERVAS_EM_ABERTO_POR_TELEFONE` (2) | O site recusa (422 `limite_de_reservas_em_aberto`) quem já tem N reservas `solicitado`/`confirmado` com início no futuro, de qualquer canal. Contagem dentro da transação, com o cliente travado (`FOR UPDATE`): pedidos simultâneos do mesmo telefone entram em fila. O operador não tem esse limite. |
+| Teto diário do site | `CLEISON_TETO_DIARIO_RESERVAS_SITE` (500) | Freio de emergência: reservas **criadas** pelo site no dia (fuso do estabelecimento), somando todos os telefones. Acima disso, 503 genérico (`indisponivel`), sem dizer que é um teto, e um aviso no log só com o teto. Conta sem trava: sob disputa pode passar por algumas unidades. |
+
+**O scheduler precisa rodar:** `php artisan schedule:run` no cron a cada
+minuto. Sem ele, nada expira.
+
+**Pré-requisito para ligar a flag do site em produção (etapa 6):**
+verificação de posse do telefone por código (WhatsApp) **ou** captcha no
+pedido de reserva. Os freios acima limitam o estrago, mas não impedem que
+alguém reserve com telefones que não são seus. Nenhum serviço externo entra
+nesta etapa.
+
+## Achados baixos da revisão de segurança (Fase 5), sem ação
+
+Registrados para não se perderem; nenhum exige mudança agora.
+
+| # | Achado | Por que fica como está |
+|---|---|---|
+| 5 | Oráculo da chave de idempotência: uma chave usada com outro corpo responde `idempotencia_conflito`, o que confirma que a chave existe. | A chave tem 16+ caracteres aleatórios gerados no cliente: não é enumerável. Quem tem chave **e** corpo idênticos recebe a própria reserva. Opcional no futuro: escopar a chave por hash do telefone. |
+| 7 | Disponibilidade sem cache: cada chamada faz ~6 consultas (um dia, até 3 serviços). | Custo limitado por chamada e limitado por IP ou pelo global por rota. Opcional: cache curto (5 a 15 s) por chave da consulta. |
+| 8 | O limitador escreve na tabela `cache` do banco a cada requisição. | Com o volume atual, é aceitável. **Nota para a etapa 6:** se o volume crescer, mover o cache (e o limitador) para Redis. |
+| 9 | Diferença de tempo em `localizar`: uuid inválido não consulta o banco; uuid válido consulta. | Só distingue "não é uuid" de "é uuid"; o uuid v4 tem 122 bits aleatórios, então isso não ajuda ninguém a achar reserva. |
+
 ## Saúde e rotas
 
 `GET /up` — confere que o banco está disponível. Resposta:
@@ -473,10 +520,16 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    - E3: Site pode alterar nome de cliente já cadastrado?
    - E4: Quantos serviços por reserva?
    - E5: Estado inicial de reserva pelo site?
-10. **Throttle por IP atrás do proxy (etapa 6).** Antes de publicar a API
-    atrás da Netlify: `TRUSTED_PROXIES` com os IPs de saída do proxy, **ou**
-    `API_LIMITE_POR_IP=false` (fica o limite por telefone e por código).
-    Detalhes em "Proxies confiáveis > Atrás da Netlify".
+10. **Proxy na frente da API (etapa 6).** Definir `API_ATRAS_DE_PROXY`
+    (obrigatória em produção). Atrás da Netlify: `true` e `TRUSTED_PROXIES`
+    com os IPs de saída do proxy; a trava de boot recusa `true` com
+    `TRUSTED_PROXIES` vazio. Detalhes em "Proxies confiáveis > Atrás da
+    Netlify".
+11. **Antes de ligar a flag do site em produção (etapa 6):** verificação do
+    telefone por código (WhatsApp) ou captcha no pedido de reserva
+    (pré-requisito, ver "Freios da reserva pelo site").
+12. **Cron do scheduler:** `php artisan schedule:run` a cada minuto no
+    servidor. Sem ele, reservas `solicitado` não expiram.
 
 ## Mapa
 
@@ -497,9 +550,12 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
 | `app/Console/Commands/CriarProprietario.php` | Bootstrap do primeiro proprietário |
 | `app/Console/Commands/AnonimizarCliente.php` | Comando `cleison:anonimizar-cliente`: pedido do titular (LGPD) com confirmação interativa |
 | `app/Console/Commands/AnonimizarInativos.php` | Comando `cleison:anonimizar-inativos`: retenção automática agendada (inerte até D5) |
+| `app/Console/Commands/ExpirarSolicitados.php` | Comando `cleison:expirar-solicitados`: expira reservas `solicitado` vencidas (a cada 5 minutos) |
+| `app/Support/ChaveDeLimite.php` | Chave HMAC dos limites da API (nunca guarda telefone, código nem IP crus) |
+| `app/Domain/Agenda/AgendaSobrecarregada.php` | Teto diário de reservas do site atingido (503 genérico) |
 | `app/Http/Controllers/SaudeController.php` | `GET /up`: confere banco sem expor detalhe de conexão (503 se falhar) |
-| `config/cleison.php` | Configuração de retenção LGPD (prazo e responsável, sem padrão) |
-| `routes/console.php` | Agenda diária `cleison:anonimizar-inativos` às 03:30 de São Paulo |
+| `config/cleison.php` | Retenção LGPD (prazo e responsável, sem padrão), freios da reserva, limites da API e `API_ATRAS_DE_PROXY` |
+| `routes/console.php` | Agenda: `cleison:expirar-solicitados` a cada 5 minutos; `cleison:anonimizar-inativos` às 03:30 de São Paulo |
 | `database/seeders/DemonstracaoSeeder.php` | Dados de exemplo do ZIP, identificados |
 | `tests/Feature/Banco/` | Constraints, ocupação, estados, privilégios, concorrência, migrations, anonimização |
 | `tests/Suporte/` | Helpers, trait `BancoDeTeste`, processo filho da concorrência |
