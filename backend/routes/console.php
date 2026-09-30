@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Schedule;
 
+// Reserva "solicitado" nao segura horario sem prazo (achado #1a da Fase 5).
+Schedule::command('cleison:expirar-solicitados')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+
 // Retencao LGPD (docs/LGPD-ANONIMIZACAO.md, secao 5). Inerte enquanto o prazo
 // nao for decidido (D5): sem CLEISON_RETENCAO_CLIENTE_INATIVO_MESES nem entra na agenda.
 Schedule::command('cleison:anonimizar-inativos')

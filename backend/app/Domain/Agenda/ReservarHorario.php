@@ -22,6 +22,7 @@ use Closure;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -269,6 +270,47 @@ final class ReservarHorario
 
             return (int) $agendamento->getKey();
         });
+    }
+
+    /**
+     * Expiracao (achado #1a): "solicitado" vira "cancelado" com motivo
+     * "expirado", ator sistema, depois de cleison.reservas.solicitado_expira_horas
+     * desde a criacao ou quando o inicio chega, o que vier primeiro. Uma
+     * transacao por reserva, com a linha travada e a condicao conferida de
+     * novo la dentro: quem foi confirmado ou cancelado enquanto isso fica
+     * como esta.
+     *
+     * @return int quantas expiraram
+     *
+     * @throws InvalidArgumentException prazo configurado invalido (nada expira)
+     */
+    public function expirarSolicitados(): int
+    {
+        $horas = filter_var(config('cleison.reservas.solicitado_expira_horas'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if ($horas === false) {
+            throw new InvalidArgumentException('CLEISON_SOLICITADO_EXPIRA_HORAS precisa ser um inteiro maior que zero.');
+        }
+
+        $agora = CarbonImmutable::now();
+        $criadoAte = $agora->subHours($horas);
+        $vencida = fn ($consulta) => $consulta->where('estado', EstadoAgendamento::Solicitado)
+            ->where(fn ($q) => $q->where('created_at', '<=', $criadoAte)->orWhere('inicio_servico', '<=', $agora));
+
+        $expiradas = 0;
+        foreach ($vencida(Agendamento::query())->orderBy('id')->pluck('id') as $id) {
+            $expirou = $this->repetir->executar(fn () => TransacaoAuditada::executar(Ator::Sistema, null, function () use ($id, $vencida) {
+                $agendamento = $vencida(Agendamento::query()->whereKey($id))->lockForUpdate()->first();
+                if ($agendamento === null) {
+                    return false;
+                }
+                $this->cancelar($agendamento, 'expirado');
+
+                return true;
+            }));
+            $expiradas += $expirou ? 1 : 0;
+        }
+
+        return $expiradas;
     }
 
     /**

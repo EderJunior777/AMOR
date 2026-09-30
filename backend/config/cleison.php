@@ -20,6 +20,18 @@ return [
     ],
 
     /*
+     * Freios da reserva pelo site (achado #1 da Fase 5).
+     *
+     *   solicitado_expira_horas: "solicitado" nao confirmado vira "cancelado"
+     *     (ator sistema, motivo "expirado") depois disso, contado da criacao,
+     *     ou quando o inicio chega, o que vier primeiro
+     *     (cleison:expirar-solicitados, a cada 5 minutos). Inteiro >= 1.
+     */
+    'reservas' => [
+        'solicitado_expira_horas' => env('CLEISON_SOLICITADO_EXPIRA_HORAS', 12),
+    ],
+
+    /*
      * API publica v1 (routes/api.php). Limites de requisicao, em tentativas
      * por janela, contados por IP e (na criacao) por telefone normalizado ou
      * (na reserva existente) por IP + codigo. Padroes conservadores; cada
