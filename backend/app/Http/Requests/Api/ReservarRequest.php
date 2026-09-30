@@ -28,13 +28,13 @@ class ReservarRequest extends RequisicaoDaApi
             'modalidade' => ['bail', 'required', 'string', 'in:barbearia,domicilio'],
             'regiao_id' => [...$domicilio, 'bail', 'integer', 'min:1'],
             'endereco' => ['exclude_unless:modalidade,domicilio', 'nullable', 'array'],
-            'endereco.logradouro' => [...$domicilio, 'bail', 'string', 'max:200'],
-            'endereco.complemento' => ['exclude_unless:modalidade,domicilio', 'nullable', 'string', 'max:100'],
-            'endereco.referencia' => ['exclude_unless:modalidade,domicilio', 'nullable', 'string', 'max:200'],
+            'endereco.logradouro' => [...$domicilio, 'bail', 'string', 'max:200', self::SEM_CONTROLE],
+            'endereco.complemento' => ['exclude_unless:modalidade,domicilio', 'nullable', 'string', 'max:100', self::SEM_CONTROLE],
+            'endereco.referencia' => ['exclude_unless:modalidade,domicilio', 'nullable', 'string', 'max:200', self::SEM_CONTROLE],
             'cliente' => ['bail', 'required', 'array'],
-            'cliente.nome' => ['bail', 'required', 'string', 'min:2', 'max:120', $this->nomeComDoisCaracteres()],
+            'cliente.nome' => ['bail', 'required', 'string', 'min:2', 'max:120', self::SEM_CONTROLE, $this->nomeComDoisCaracteres()],
             'cliente.telefone' => ['bail', 'required', 'string', 'max:40', $this->telefoneValido()],
-            'observacao' => ['nullable', 'string', 'max:300'],
+            'observacao' => ['nullable', 'string', 'max:300', self::SEM_CONTROLE],
         ];
     }
 

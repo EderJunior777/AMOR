@@ -35,8 +35,15 @@ abstract class RequisicaoDaApi extends FormRequest
             'distinct' => 'Valor repetido.',
             'in' => 'Valor nao permitido.',
             'regex' => 'Formato invalido.',
+            'not_regex' => 'Caractere nao permitido.',
         ];
     }
+
+    /**
+     * Texto livre sem caractere de controle (NUL e afins; tab e quebra de linha
+     * passam): o PostgreSQL recusaria o NUL (22021) e a API responderia 500.
+     */
+    protected const SEM_CONTROLE = 'not_regex:/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/';
 
     /** @return array<string, list<mixed>> */
     protected function regrasDeServicos(): array

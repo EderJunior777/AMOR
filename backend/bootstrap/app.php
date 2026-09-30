@@ -77,6 +77,14 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // render: so em requisicao JSON; o resto segue o padrao do Laravel.
         $exceptions->report(fn (PDOException $e) => ErroDeBanco::registrar($e))->stop();
         $exceptions->render(fn (PDOException $e, Request $request) => $pedeJson($request) ? ErroDeBanco::resposta($e) : null);
+
+        // Ultimo recurso em api/*: qualquer outro erro sai fixo, sem trace nem
+        // mensagem interna, mesmo com APP_DEBUG ligado.
+        $exceptions->render(fn (Throwable $e, Request $request) => $daApi($request)
+            ? ($e instanceof HttpExceptionInterface
+                ? response()->json(['mensagem' => 'Requisicao recusada.', 'codigo' => 'requisicao_recusada'], $e->getStatusCode())
+                : response()->json(['mensagem' => 'Erro interno.', 'codigo' => 'erro_interno'], 500))
+            : null);
     })->create();
 
 // Kernel de console proprio so para imprimir erro de banco sem PII (ver a

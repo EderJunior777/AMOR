@@ -71,6 +71,9 @@ final class ErroDeBanco
         '23505' => 'Registro duplicado.',
         '23503' => 'Referencia invalida ou registro em uso.',
         '23001' => 'Registro em uso; nao pode ser removido.',
+        // Texto: byte invalido (NUL) ou maior que a coluna. Segunda camada da validacao.
+        '22021' => 'Texto com caractere nao permitido.',
+        '22001' => 'Texto maior que o permitido.',
     ];
 
     /** @var WeakMap<PDOException, string>|null */
