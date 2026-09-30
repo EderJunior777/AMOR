@@ -134,6 +134,18 @@ final class ReservarHorario
     }
 
     /**
+     * So a repeticao (passo 0), sem gravar nada: a reserva que ja existe para
+     * a chave deste pedido, ou nulo. Usada pela API quando o limite por
+     * telefone ja estourou, para o reenvio legitimo receber a reserva (200).
+     *
+     * @throws ReservaRecusada idempotencia_conflito (mesma chave, outro pedido)
+     */
+    public function repeticao(PedidoDeReserva $pedido, Canal $canal): ?ResultadoDaReserva
+    {
+        return $this->reservaDaChave($pedido, $canal);
+    }
+
+    /**
      * Passo 0 e passo 3: o agendamento da chave, se houver. Mesmo pedido e
      * mesmo canal: e a mesma reserva. Qualquer outra coisa: conflito, sem
      * revelar nada da reserva existente.
@@ -599,11 +611,13 @@ final class ReservarHorario
     private function exigirFolgaNoTetoDoSite(Estabelecimento $estabelecimento): void
     {
         $teto = self::inteiroPositivo('teto_diario_do_site', 'CLEISON_TETO_DIARIO_RESERVAS_SITE');
+        // O dia e o do fuso do estabelecimento, mas a janela vai ao banco em
+        // UTC: o binding perde o fuso e o banco le a hora como UTC.
         $inicioDoDia = CarbonImmutable::now($estabelecimento->fuso_horario)->startOfDay();
         $criadasHoje = Agendamento::query()
             ->where('origem', Canal::Site->origem())
-            ->where('created_at', '>=', $inicioDoDia)
-            ->where('created_at', '<', $inicioDoDia->addDay())
+            ->where('created_at', '>=', $inicioDoDia->utc())
+            ->where('created_at', '<', $inicioDoDia->addDay()->utc())
             ->count();
         if ($criadasHoje >= $teto) {
             Log::warning('Teto diario de reservas do site atingido', ['teto' => $teto]);

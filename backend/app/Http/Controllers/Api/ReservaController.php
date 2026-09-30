@@ -37,10 +37,13 @@ class ReservaController extends Controller
 
         $chave = ChaveDeLimite::de('criar-telefone', $pedido->clienteTelefone);
         if (RateLimiter::tooManyAttempts($chave, (int) config('cleison.api.limites.criar_por_hora_telefone'))) {
-            throw new ThrottleRequestsException(headers: ['Retry-After' => RateLimiter::availableIn($chave)]);
+            // No limite, o reenvio da MESMA tentativa ainda recebe a reserva
+            // que ja existe; so pedido novo leva 429.
+            $resultado = $reservas->repeticao($pedido, Canal::Site)
+                ?? throw new ThrottleRequestsException(headers: ['Retry-After' => RateLimiter::availableIn($chave)]);
         }
 
-        $resultado = $reservas->executar($pedido, Canal::Site);
+        $resultado ??= $reservas->executar($pedido, Canal::Site);
         if (! $resultado->repetida) {
             RateLimiter::hit($chave, self::UMA_HORA);
         }

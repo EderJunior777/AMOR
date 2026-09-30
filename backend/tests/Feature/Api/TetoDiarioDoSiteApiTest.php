@@ -67,6 +67,25 @@ class TetoDiarioDoSiteApiTest extends ApiTestCase
         $this->reservar($this->pedidoDe(3, '14:00'), 'chave-teto-000000003')->assertCreated();
     }
 
+    /**
+     * Regressao (code-reviewer): a janela do dia ia ao banco como hora local
+     * sem fuso e era lida como UTC, deslocada 3 h. Reserva criada as 22:00
+     * de SP (01:00 UTC do dia seguinte) tem que contar no dia de SP.
+     */
+    public function test_reserva_criada_a_noite_em_sp_conta_no_dia_de_sp(): void
+    {
+        $this->reservar($this->pedidoDe(1, '10:00'), 'chave-teto-000000001')->assertCreated();
+
+        Carbon::setTestNow(Carbon::parse('2026-10-06 01:00:00', 'UTC')); // 22:00 SP do dia 5
+        $this->reservar($this->pedidoDe(2, '11:00'), 'chave-teto-000000002')->assertCreated();
+
+        Carbon::setTestNow(Carbon::parse('2026-10-06 02:00:00', 'UTC')); // 23:00 SP do dia 5: ja sao 2
+        $this->reservar($this->pedidoDe(3, '14:00'), 'chave-teto-000000003')->assertStatus(503);
+
+        Carbon::setTestNow(Carbon::parse('2026-10-06 03:00:00', 'UTC')); // dia 6 em SP: zera
+        $this->reservar($this->pedidoDe(3, '14:00'), 'chave-teto-000000003')->assertCreated();
+    }
+
     public function test_repeticao_idempotente_passa_mesmo_no_teto(): void
     {
         $this->reservar($this->pedidoDe(1, '10:00'), 'chave-teto-000000001')->assertCreated();

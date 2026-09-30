@@ -166,5 +166,6 @@ class LimpezaDaIdempotenciaTest extends TestCase
         $this->assertSame('45 3 * * *', $evento->expression);
         $this->assertSame('America/Sao_Paulo', $evento->timezone);
         $this->assertTrue($evento->withoutOverlapping);
+        $this->assertSame(60, $evento->expiresAt);
     }
 }

@@ -120,6 +120,26 @@ class LimitesApiTest extends ApiTestCase
         $this->assert429($this->reservar($this->corpo(['hora' => '14:00']), 'chave-d-0123456789abcdef'));
     }
 
+    /**
+     * Revisao final: no limite do telefone, o REENVIO da mesma tentativa
+     * (mesma chave, mesmo corpo; ex.: resposta perdida) recebe a reserva que
+     * ja existe (200), nao 429. Pedido novo continua barrado.
+     */
+    public function test_no_limite_do_telefone_o_reenvio_idempotente_ainda_recebe_a_reserva(): void
+    {
+        $this->limitar('criar_por_hora_telefone', 1);
+
+        $criada = $this->reservar($this->corpo(['hora' => '10:00']), 'chave-a-0123456789abcdef')->assertCreated();
+
+        $repetida = $this->reservar($this->corpo(['hora' => '10:00']), 'chave-a-0123456789abcdef')->assertOk();
+        $this->assertSame($criada->json('codigo'), $repetida->json('codigo'));
+
+        $this->assert429($this->reservar($this->corpo(['hora' => '11:00']), 'chave-b-0123456789abcdef'));
+        // Mesma chave com outro corpo, no limite: segue o contrato da idempotencia.
+        $this->reservar($this->corpo(['hora' => '11:00']), 'chave-a-0123456789abcdef')
+            ->assertStatus(422)->assertJsonPath('codigo', 'idempotencia_conflito');
+    }
+
     public function test_por_ip_as_tentativas_invalidas_continuam_contando(): void
     {
         $this->limitar('criar_por_minuto_ip', 2);

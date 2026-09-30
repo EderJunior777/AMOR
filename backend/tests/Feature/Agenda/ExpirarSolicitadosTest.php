@@ -190,5 +190,8 @@ class ExpirarSolicitadosTest extends TestCase
         $this->assertNotNull($evento);
         $this->assertSame('*/5 * * * *', $evento->expression);
         $this->assertTrue($evento->withoutOverlapping);
+        // Trava com prazo curto: um schedule:run morto no meio nao para a
+        // expiracao por 24 h (o padrao do framework).
+        $this->assertSame(10, $evento->expiresAt);
     }
 }
