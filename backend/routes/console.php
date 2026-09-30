@@ -7,6 +7,13 @@ Schedule::command('cleison:expirar-solicitados')
     ->everyFiveMinutes()
     ->withoutOverlapping();
 
+// Idempotencia: chave e hash de agendamentos criados ha mais de 7 dias viram
+// NULL (docs/ESPEC-RESERVA.md, secao 4; LGPD D6).
+Schedule::command('cleison:limpar-idempotencia')
+    ->dailyAt('03:45')
+    ->timezone('America/Sao_Paulo')
+    ->withoutOverlapping();
+
 // Retencao LGPD (docs/LGPD-ANONIMIZACAO.md, secao 5). Inerte enquanto o prazo
 // nao for decidido (D5): sem CLEISON_RETENCAO_CLIENTE_INATIVO_MESES nem entra na agenda.
 Schedule::command('cleison:anonimizar-inativos')

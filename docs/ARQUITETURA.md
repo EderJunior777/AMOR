@@ -180,7 +180,7 @@ proprietário tudo.
 | Papel de runtime sem DDL | Privilégios do PostgreSQL | **Implementado e testado** (cluster local) |
 | Data real, passado, antecedência, horizonte, expediente, grade | Aplicação (etapa 2) | **Planejado** |
 | Profissional/serviço/região ativos e habilitados | Aplicação (etapa 2) | **Planejado** |
-| Idempotência (mesma chave + mesmo corpo = mesma reserva) | Colunas + UNIQUE prontos; lógica na etapa 2 | **Parcial** |
+| Idempotência (mesma chave + mesmo corpo = mesma reserva) | UNIQUE + `ReservarHorario`; limpeza diária após 7 dias (`cleison_limpar_idempotencia`) | **Implementado e testado** (etapa 2) |
 | Login, MFA, autorização, CSRF, rate limit | Etapa 3 | **Planejado** |
 
 ## 8. Como a concorrência é testada
@@ -265,6 +265,9 @@ altera dados pessoais de histórico encerrado. A aplicação a chama dentro de
 - Triggers de imutabilidade têm exceção estreita: permite UPDATE só para o dono
   da tabela, só das colunas de dado pessoal, com valores anonimizados. A
   exceção não passa por variável de sessão (que a aplicação pode alterar).
+  A limpeza da idempotência (etapa 2, Fase 6) tem a segunda e última
+  exceção no encerrado: dono, e só `chave_idempotencia` e `hash_requisicao`
+  indo a NULL juntos.
 - **Limite conhecido:** a checagem "só proprietário ativo" e o ator do
   histórico protegem contra bug e esquecimento, não contra o papel da
   aplicação comprometido. Esse papel tem DML em `users` (o

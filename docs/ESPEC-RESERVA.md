@@ -112,6 +112,14 @@ V5 (inativo), V6 (sem vínculo) e 2.2 (preço vem do catálogo).
      cliente reenvia com a mesma chave e cai em 2.
 - **Limpeza:** uma rotina diária anula chave e hash (juntos) de
   agendamentos criados há mais de 7 dias. A anonimização também os anula.
+  Implementada na Fase 6: `cleison_limpar_idempotencia()` (SECURITY DEFINER
+  do dono, sem parâmetro: prazo e relógio do banco), chamada por
+  `ReservarHorario::limparIdempotencia` e pelo comando
+  `cleison:limpar-idempotencia` (todo dia às 03:45 de São Paulo). O trigger
+  de imutabilidade do encerrado ganhou uma exceção estreita, no padrão da
+  anonimização: só o dono, e só chave e hash indo a NULL juntos
+  (migration `2026_09_30_000400`). Depois da limpeza, repetir o pedido com
+  a mesma chave cria uma reserva nova (a janela de repetição é de 7 dias).
 
 ## 5. Transação e erros
 

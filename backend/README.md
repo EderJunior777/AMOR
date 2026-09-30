@@ -539,6 +539,7 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
 | `database/migrations/2026_09_29_000100_fechar_escrita_direta_na_agenda.php` | Exigência PostgreSQL >= 17; fecha INSERT/UPDATE/DELETE em `ocupacoes_agenda` e `agendamento_eventos` |
 | `database/migrations/2026_09_29_000200_fechar_sequencias_da_agenda.php` | Fecha sequências de ocupações e histórico |
 | `database/migrations/2026_09_29_000300_anonimizacao_de_clientes.php` | Tabela `anonimizacoes`, triggers de exceção à imutabilidade, função `cleison_anonimizar_cliente` |
+| `database/migrations/2026_09_30_000400_limpeza_da_idempotencia.php` | Função `cleison_limpar_idempotencia` e a exceção estreita da limpeza no encerrado |
 | `app/Enums/` | Estado do agendamento (contrato), origem, modalidade, papel, origem de anonimização |
 | `app/Models/` | Models do domínio usados pelo seed/testes |
 | `app/Support/Telefone.php` | Normalização para E.164 |
@@ -551,11 +552,12 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
 | `app/Console/Commands/AnonimizarCliente.php` | Comando `cleison:anonimizar-cliente`: pedido do titular (LGPD) com confirmação interativa |
 | `app/Console/Commands/AnonimizarInativos.php` | Comando `cleison:anonimizar-inativos`: retenção automática agendada (inerte até D5) |
 | `app/Console/Commands/ExpirarSolicitados.php` | Comando `cleison:expirar-solicitados`: expira reservas `solicitado` vencidas (a cada 5 minutos) |
+| `app/Console/Commands/LimparIdempotencia.php` | Comando `cleison:limpar-idempotencia`: anula chave e hash com mais de 7 dias (todo dia às 03:45) |
 | `app/Support/ChaveDeLimite.php` | Chave HMAC dos limites da API (nunca guarda telefone, código nem IP crus) |
 | `app/Domain/Agenda/AgendaSobrecarregada.php` | Teto diário de reservas do site atingido (503 genérico) |
 | `app/Http/Controllers/SaudeController.php` | `GET /up`: confere banco sem expor detalhe de conexão (503 se falhar) |
 | `config/cleison.php` | Retenção LGPD (prazo e responsável, sem padrão), freios da reserva, limites da API e `API_ATRAS_DE_PROXY` |
-| `routes/console.php` | Agenda: `cleison:expirar-solicitados` a cada 5 minutos; `cleison:anonimizar-inativos` às 03:30 de São Paulo |
+| `routes/console.php` | Agenda: `cleison:expirar-solicitados` a cada 5 minutos; `cleison:anonimizar-inativos` às 03:30 e `cleison:limpar-idempotencia` às 03:45 de São Paulo |
 | `database/seeders/DemonstracaoSeeder.php` | Dados de exemplo do ZIP, identificados |
 | `tests/Feature/Banco/` | Constraints, ocupação, estados, privilégios, concorrência, migrations, anonimização |
 | `tests/Suporte/` | Helpers, trait `BancoDeTeste`, processo filho da concorrência |

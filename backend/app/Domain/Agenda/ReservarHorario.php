@@ -312,6 +312,24 @@ final class ReservarHorario
     }
 
     /**
+     * Limpeza da idempotencia (Fase 6; secao 4 da espec; LGPD D6): anula chave
+     * e hash, juntos, dos agendamentos criados ha mais de 7 dias, em qualquer
+     * estado. Quem grava e cleison_limpar_idempotencia() (SECURITY DEFINER do
+     * dono, prazo e relogio do banco); a excecao estreita no trigger do
+     * encerrado so aceita essas duas colunas indo a NULL. Nao gera evento.
+     *
+     * @return int quantos agendamentos perderam chave e hash
+     */
+    public function limparIdempotencia(): int
+    {
+        return $this->repetir->executar(fn () => TransacaoAuditada::executar(
+            Ator::Sistema,
+            null,
+            fn () => (int) DB::scalar('SELECT public.cleison_limpar_idempotencia()'),
+        ));
+    }
+
+    /**
      * A transacao inteira (a closure devolve o id) e repetida em 40P01/40001;
      * o resultado e relido fora dela.
      *
