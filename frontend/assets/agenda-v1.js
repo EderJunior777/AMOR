@@ -31,6 +31,7 @@
   };
 
   var ESPERA_ANTES_DE_REENVIAR_MS = 800;
+  var TEMPO_LIMITE_MS = 20000;
 
   /* Falha com tipo estavel: conflito (409), recusa (422), espera (429/503),
      rede (sem resposta) ou erro (o resto). A mensagem e sempre texto fixo ou
@@ -48,6 +49,16 @@
     }
     if (status === 429 || status === 503) return falha("espera", status, corpo.codigo, MENSAGENS.espera);
     return falha("erro", status, corpo.codigo, MENSAGENS.erro);
+  }
+
+  /* A API respondeu de forma DEFINITIVA, antes de gravar (409, 422, 429,
+     503): a tentativa acabou e o proximo envio usa chave nova. Sem resposta
+     (rede) ou erro generico (500, 502, 504...), a reserva PODE ter sido
+     gravada: a tentativa continua, e reenviar o mesmo pedido usa a mesma
+     chave (a API devolve a reserva que ja existe). */
+  function respostaDefinitiva(falhaRecebida) {
+    var tipo = falhaRecebida && falhaRecebida.tipo;
+    return tipo === "conflito" || tipo === "recusa" || tipo === "espera";
   }
 
   /* Chave de idempotencia: aleatoria de verdade (crypto), nunca o gerador comum.
@@ -78,6 +89,7 @@
     opcoes = opcoes || {};
     var base = String(opcoes.base || "/api/v1").replace(/\/+$/, "");
     var buscar = opcoes.fetch || (typeof fetch === "function" ? fetch.bind(raiz) : null);
+    var tempoLimite = opcoes.tempoLimiteMs || TEMPO_LIMITE_MS;
     var esperar = opcoes.esperar || function (ms) {
       return new Promise(function (ok) { setTimeout(ok, ms); });
     };
@@ -93,9 +105,20 @@
       }
       Object.keys(cabecalhos || {}).forEach(function (nome) { init.headers[nome] = cabecalhos[nome]; });
 
+      // Pedido pendurado nao prende a tela: depois do tempo-limite, aborta e
+      // vira falha de rede (a tentativa continua, com a mesma chave).
+      var relogio = null;
+      if (typeof AbortController === "function") {
+        var abortar = new AbortController();
+        init.signal = abortar.signal;
+        relogio = setTimeout(function () { abortar.abort(); }, tempoLimite);
+      }
+      var desligarRelogio = function () { if (relogio) clearTimeout(relogio); };
+
       return Promise.resolve()
         .then(function () { return buscar(base + caminho, init); })
-        .then(null, function () { throw falha("rede", 0, null, MENSAGENS.rede); })
+        .then(function (resposta) { desligarRelogio(); return resposta; },
+              function () { desligarRelogio(); throw falha("rede", 0, null, MENSAGENS.rede); })
         .then(function (resposta) {
           return resposta.json().then(null, function () { return {}; }).then(function (dados) {
             if (!resposta.ok) throw interpretar(resposta.status, dados);
@@ -200,6 +223,7 @@
   var AgendaV1 = {
     criar: criar,
     interpretar: interpretar,
+    respostaDefinitiva: respostaDefinitiva,
     novaChave: novaChave,
     tentativaPara: tentativaPara,
     MENSAGENS: MENSAGENS

@@ -209,6 +209,11 @@ centralizada em `App\Support\ErroDeBanco`:
 | 40P01, 40001 | 503 + `Retry-After: 1` | Deadlock ou serialização (repetir) |
 | outros | 500 | Erro interno ou bug SQL |
 
+Fora do banco, a API pública também responde 422 `ReservaRecusada` (código
+estável por regra, ex.: `limite_de_reservas_em_aberto`), 429
+`muitas_tentativas` e 503 `indisponivel` (teto diário do site). Contrato em
+`docs/ESPEC-RESERVA.md`, seção 5.
+
 Resposta HTTP padrão (sem revelar causa):
 ```json
 {"mensagem": "...", "codigo": "...", "correlacao": "<uuid>"}

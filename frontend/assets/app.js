@@ -17,9 +17,13 @@
   // hoje (Blobs). Ligada, o site fala SO com a API nova: nunca com
   // /api/agenda nem /api/cliente (sem gravacao dupla), e o painel antigo do
   // barbeiro nao ve estas reservas.
-  var nova = !!(typeof CONFIG !== "undefined" && CONFIG.agendaNova && CONFIG.agendaNova.ligada &&
-    typeof window.AgendaV1 !== "undefined");
-  var agendaNova = nova ? window.AgendaV1.criar({ base: CONFIG.agendaNova.api || "/api/v1" }) : null;
+  // Ligada mas sem o cliente (agenda-v1.js nao carregou): continua "nova",
+  // com a agenda fora do ar; nunca cai nos Blobs nem no modo demonstracao.
+  var nova = !!(typeof CONFIG !== "undefined" && CONFIG.agendaNova && CONFIG.agendaNova.ligada);
+  var agendaNova = nova && typeof window.AgendaV1 !== "undefined"
+    ? window.AgendaV1.criar({ base: CONFIG.agendaNova.api || "/api/v1" })
+    : null;
+  var ERRO_GENERICO = "Nao consegui concluir agora. Tente de novo em instantes.";
 
   var estado = {
     servico: null,
@@ -158,7 +162,7 @@
     window.addEventListener("online", function () {
       estado.offline = false;
       estado.modoLocal = false;
-      el("aviso-local").hidden = true;
+      if (!estado.semAgenda) el("aviso-local").hidden = true;
       atualizarBotaoConfirmar();
       if (estado.dia) carregarHorarios();
     });
@@ -533,7 +537,7 @@
       caixa.textContent = "";
       var aviso = document.createElement("div");
       aviso.className = "vazio";
-      aviso.textContent = (falha && falha.mensagem) || window.AgendaV1.MENSAGENS.erro;
+      aviso.textContent = (falha && falha.mensagem) || ERRO_GENERICO;
       caixa.appendChild(aviso);
       estadoDoPasso("passo-dados", false);
     });
@@ -814,6 +818,7 @@
   // tentativa fica em aberto e reenviar o MESMO pedido usa a mesma chave;
   // qualquer resposta da API encerra a tentativa.
   function enviarParaAgendaNova(form) {
+    if (!agendaNova || estado.semAgenda) return mostrarErro("A agenda esta fora do ar. Tente de novo em instantes.");
     estado.enviando = true;
     var botao = el("botao-confirmar");
     botao.disabled = true;
@@ -841,9 +846,12 @@
       .then(function (resultado) {
         estado.tentativa = null;
         mostrarSucessoDaAgendaNova(resultado.reserva, form);
-      }, function (falha) {
+      })
+      .then(null, function (falha) {
         falha = falha || {};
-        if (falha.tipo !== "rede") estado.tentativa = null;
+        // So resposta definitiva da API encerra a tentativa; sem resposta ou
+        // com erro generico (pode ter gravado), o reenvio usa a mesma chave.
+        if (window.AgendaV1.respostaDefinitiva(falha)) estado.tentativa = null;
 
         if (falha.tipo === "conflito") {
           mostrarErro(falha.mensagem);
@@ -854,13 +862,15 @@
           atualizarBarra();
           irPara("passo-hora");
         } else {
-          mostrarErro(falha.mensagem || window.AgendaV1.MENSAGENS.erro);
+          mostrarErro(falha.mensagem || ERRO_GENERICO);
         }
       })
-      .then(function () {
-        estado.enviando = false;
-        atualizarBotaoConfirmar();
-      });
+      .then(fimDoEnvio, fimDoEnvio);
+
+    function fimDoEnvio() {
+      estado.enviando = false;
+      atualizarBotaoConfirmar();
+    }
   }
 
   // Linha "rotulo / valor" do recibo, so com textContent.
@@ -938,7 +948,7 @@
   // Consultar, cancelar e remarcar por codigo + telefone (so agenda nova).
   function ligarMinhaReserva() {
     var secao = el("minha-reserva");
-    if (!secao) return;
+    if (!secao || !agendaNova) return;
     secao.hidden = false;
 
     el("minha-telefone").addEventListener("input", function (e) {
@@ -970,7 +980,7 @@
             linhasDaReserva(caixa, resultado.reserva);
             avisar("", resultado.aviso);
           }, function (falha) {
-            avisar((falha && falha.mensagem) || window.AgendaV1.MENSAGENS.erro);
+            avisar((falha && falha.mensagem) || ERRO_GENERICO);
           })
           .then(function () { botao.disabled = false; });
       });
@@ -1297,18 +1307,27 @@
     });
   }
 
+  // Capa (livres hoje e proximos horarios): uma consulta por dia, dividida
+  // entre os dois cartoes, para nao gastar o limite da API a cada visita.
+  var livresDaCapa = {};
+  function horariosDaCapa(iso) {
+    if (!livresDaCapa[iso]) {
+      livresDaCapa[iso] = horariosDaApi(iso, servicoMaisCurto(), "barbearia", null)
+        .then(null, function () { return []; });
+    }
+    return livresDaCapa[iso];
+  }
+
   function contarLivresHojeNaApi() {
-    var servico = servicoMaisCurto();
-    var nenhum = function () { return []; };
     var amanha = new Date();
     amanha.setDate(amanha.getDate() + 1);
 
-    horariosDaApi(paraISO(new Date()), servico, "barbearia", null).then(null, nenhum).then(function (livres) {
+    horariosDaCapa(paraISO(new Date())).then(function (livres) {
       if (livres.length) {
         el("dado-livres").textContent = livres.length;
         return;
       }
-      return horariosDaApi(paraISO(amanha), servico, "barbearia", null).then(null, nenhum).then(function (deAmanha) {
+      return horariosDaCapa(paraISO(amanha)).then(function (deAmanha) {
         el("dado-livres").textContent = deAmanha.length;
         el("dado-livres-rotulo").textContent = "Livres amanha";
       });
@@ -1334,7 +1353,7 @@
 
       var iso = paraISO(data);
       var livresDoDia = nova
-        ? horariosDaApi(iso, servicoMaisCurto(), "barbearia", null).then(null, function () { return []; })
+        ? horariosDaCapa(iso)
         : buscarOcupados(iso).then(function (ocupados) { return horariosLivres(menor, iso, ocupados); });
       return livresDoDia.then(function (livres) {
         livres.slice(0, 4 - achados.length)
@@ -1462,6 +1481,7 @@
   // Catalogo da API: o slug do config.js vira o id da API; preco e duracao
   // passam a ser os do servidor; servico ou regiao sem par na API somem.
   function prepararAgendaNova() {
+    if (!agendaNova) return Promise.reject(new Error("cliente da agenda nova ausente"));
     return agendaNova.catalogo().then(function (cat) {
       CONFIG.servicos = CONFIG.servicos.filter(function (s) { return cat.servicos[s.id]; }).map(function (s) {
         var daApi = cat.servicos[s.id];

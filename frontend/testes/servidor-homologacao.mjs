@@ -14,6 +14,8 @@
      com a flag ligada o site NAO pode falar com os dois mundos. Toda chamada
      a eles aparece no console como ERRO.
    - O painel do barbeiro (agenda.html) NAO mostra estas reservas.
+   - So escuta em 127.0.0.1 e so serve os arquivos do site (nada de
+     testes/, netlify/ ou package.json).
    ========================================================================= */
 
 import { createServer } from "node:http";
@@ -24,6 +26,10 @@ import { fileURLToPath } from "node:url";
 const RAIZ = fileURLToPath(new URL("..", import.meta.url));
 const PORTA = Number(process.env.PORT) || 8890;
 const API = String(process.env.API_V1_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+
+// Arquivos do site que podem sair; o resto da pasta (testes, funcoes,
+// package.json...) responde 404.
+const PUBLICOS = /^\/(index\.html|agenda\.html|sw\.js|manifest\.webmanifest|assets\/[A-Za-z0-9._\/-]+)$/;
 
 const TIPOS = {
   ".html": "text/html; charset=utf-8",
@@ -78,6 +84,11 @@ const servidor = createServer(async (req, res) => {
   }
 
   const caminho = url.pathname === "/" ? "/index.html" : url.pathname;
+  if (!PUBLICOS.test(caminho) || caminho.includes("..")) {
+    res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    res.end("Nao encontrado");
+    return;
+  }
   const arquivo = join(RAIZ, normalize(caminho).replace(/^(\.\.[/\\])+/, ""));
 
   try {
@@ -93,7 +104,7 @@ const servidor = createServer(async (req, res) => {
   }
 });
 
-servidor.listen(PORTA, () => {
+servidor.listen(PORTA, "127.0.0.1", () => {
   console.log(`\n  HOMOLOGACAO da agenda nova: http://localhost:${PORTA}`);
   console.log(`  API v1 (proxy): ${API}/api/v1`);
   console.log("  O painel do barbeiro NAO mostra estas reservas.\n");

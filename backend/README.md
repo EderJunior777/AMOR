@@ -252,18 +252,22 @@ Por isso **`API_ATRAS_DE_PROXY` é obrigatória em produção** (`true` ou
 `false`, sem padrão), e a trava de boot recusa subir sem ela ou com
 `API_ATRAS_DE_PROXY=true` e `TRUSTED_PROXIES` vazio:
 
-- **Atrás da Netlify:** `API_ATRAS_DE_PROXY=true` e `TRUSTED_PROXIES` só com
-  os endereços de saída do proxy (faixas publicadas pelo provedor, nunca `*`
-  nem faixa ampla). O IP do cliente vem do `X-Forwarded-For` e cada cliente
-  tem o próprio limite (`LimitesPorIpAtrasDeProxyTest`).
+- **Atrás de um proxy com IPs de saída conhecidos:** `API_ATRAS_DE_PROXY=true`
+  e `TRUSTED_PROXIES` só com esses endereços (nunca `*` nem faixa ampla). O
+  IP do cliente vem do `X-Forwarded-For` e cada cliente tem o próprio limite
+  (`LimitesPorIpAtrasDeProxyTest`).
 - **Cliente chegando direto:** `API_ATRAS_DE_PROXY=false`.
 
-**Limitação conhecida (a resolver na etapa 6):** a Netlify **não publica
-uma lista fixa** de IPs de saída, então `TRUSTED_PROXIES` por IP é
-inviável atrás dela. Alternativa a avaliar (não implementada): o redirect
-`/api/*` da Netlify envia um **cabeçalho secreto** (`headers` no
-`[[redirects]]` do `netlify.toml`), e o backend só confia no
-`X-Forwarded-For` quando esse cabeçalho confere.
+**Atrás da Netlify, hoje, não há configuração correta: publicar a API atrás
+dela está BLOQUEADO até a etapa 6.** A Netlify **não publica uma lista fixa**
+de IPs de saída, então `TRUSTED_PROXIES` por IP é inviável, e a trava de
+boot recusa `API_ATRAS_DE_PROXY=true` sem ela. Declarar `false` atrás do
+proxy passaria na trava (ela confere a declaração, não a rede), mas seria
+falso: o limite por IP viraria um limite global calado. Alternativa a
+avaliar na etapa 6 (não implementada): o redirect `/api/*` da Netlify envia
+um **cabeçalho secreto** (`headers` no `[[redirects]]` do `netlify.toml`) e
+o backend só confia no `X-Forwarded-For` quando esse cabeçalho confere.
+Para a homologação local, use `frontend/testes/servidor-homologacao.mjs`.
 
 `API_LIMITE_POR_IP=false` continua existindo como interruptor para quando o
 IP não for confiável por outro motivo. Desligado, ficam o limite **por
@@ -435,6 +439,14 @@ Registrados para não se perderem; nenhum exige mudança agora.
 | 8 | O limitador escreve na tabela `cache` do banco a cada requisição. | Com o volume atual, é aceitável. **Nota para a etapa 6:** se o volume crescer, mover o cache (e o limitador) para Redis. |
 | 9 | Diferença de tempo em `localizar`: uuid inválido não consulta o banco; uuid válido consulta. | Só distingue "não é uuid" de "é uuid"; o uuid v4 tem 122 bits aleatórios, então isso não ajuda ninguém a achar reserva. |
 
+Da revisão da Fase 7 e da revisão final, **riscos aceitos** (sem ação agora):
+
+| Risco | Por que fica |
+|---|---|
+| `limite_de_reservas_em_aberto` (422) revela a quem informa um telefone alheio que esse telefone já tem reservas em aberto, e esse alguém pode ocupar as vagas da vítima até a expiração (12 h). | Os limites por IP e por telefone freiam; a solução de fundo é a verificação do telefone (pré-requisito da flag em produção). |
+| O teto diário conta reservas criadas em qualquer estado; bots com muitos IPs podem esgotá-lo e o site fica em 503 genérico até o fim do dia. | É o freio de emergência por desenho. Monitorar o aviso `Teto diario de reservas do site atingido` no log. |
+| O limite por telefone é "confere e depois conta" (não atômico): rajadas simultâneas podem passar por algumas unidades. | É freio, não cota exata; o máximo de reservas em aberto (com trava) segura o que importa. |
+
 ## Saúde e rotas
 
 `GET /up` — confere que o banco está disponível. Resposta:
@@ -531,10 +543,10 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    - E4: Quantos serviços por reserva?
    - E5: Estado inicial de reserva pelo site?
 10. **Proxy na frente da API (etapa 6).** Definir `API_ATRAS_DE_PROXY`
-    (obrigatória em produção). Atrás da Netlify: `true` e `TRUSTED_PROXIES`
-    com os IPs de saída do proxy; a trava de boot recusa `true` com
-    `TRUSTED_PROXIES` vazio. Detalhes em "Proxies confiáveis > Atrás da
-    Netlify".
+    (obrigatória em produção; a trava recusa `true` com `TRUSTED_PROXIES`
+    vazio). Atrás da Netlify não há configuração correta hoje (sem lista
+    fixa de IPs): publicar a API atrás dela fica bloqueado até decidir o
+    item 13. Detalhes em "Proxies confiáveis > Atrás da Netlify".
 11. **Antes de ligar a flag do site em produção (etapa 6):** verificação do
     telefone por código (WhatsApp) ou captcha no pedido de reserva
     (pré-requisito, ver "Freios da reserva pelo site").

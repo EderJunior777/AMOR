@@ -99,6 +99,29 @@ secao("Rede: uma repeticao, com a mesma chave");
   ok(init.headers["content-type"] === "application/json" && JSON.parse(init.body).hora === "10:00", "corpo em JSON");
 }
 
+secao("Quando a tentativa acaba (revisao de seguranca)");
+// Resposta definitiva da API (antes de gravar): proxima tentativa, chave nova.
+for (const status of [409, 422, 429, 503]) {
+  ok(AgendaV1.respostaDefinitiva(AgendaV1.interpretar(status, {})) === true, status + ": resposta definitiva, encerra a tentativa");
+}
+// Resultado desconhecido (pode ter gravado): mantem a chave para o reenvio.
+for (const status of [500, 502, 504]) {
+  ok(AgendaV1.respostaDefinitiva(AgendaV1.interpretar(status, {})) === false, status + ": resultado incerto, mantem a mesma chave");
+}
+ok(AgendaV1.respostaDefinitiva({ tipo: "rede" }) === false, "sem resposta: mantem a mesma chave");
+ok(AgendaV1.respostaDefinitiva(null) === false, "falha desconhecida: mantem a mesma chave");
+
+secao("Tempo-limite: pedido pendurado vira falha de rede");
+{
+  let sinais = 0;
+  const fetchPendurado = (url, init) => new Promise((_, rejeitar) => {
+    if (init.signal) { sinais++; init.signal.addEventListener("abort", () => rejeitar(new Error("abortado"))); }
+  });
+  const api = AgendaV1.criar({ base: "/api/v1", fetch: fetchPendurado, esperar: () => Promise.resolve(), tempoLimiteMs: 30 });
+  const f = await falhaDe(api.reservar(corpo, AgendaV1.tentativaPara(null, corpo)));
+  ok(f && f.tipo === "rede" && sinais === 2, "abortado depois do tempo-limite, com uma repeticao (mesma chave)", { f, sinais });
+}
+
 secao("Chave de idempotencia por tentativa");
 const t1 = AgendaV1.tentativaPara(null, corpo);
 ok(/^[A-Za-z0-9_-]{16,100}$/.test(t1.chave), "formato aceito pela API ([A-Za-z0-9_-], 16 a 100)", t1.chave);

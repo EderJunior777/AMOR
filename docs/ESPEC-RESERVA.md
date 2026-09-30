@@ -148,6 +148,15 @@ Dentro da transação, em ordem:
 | outro `23xxx` | 422 genérico e log de erro: é sinal de bug no cálculo, porque o domínio já validou |
 | erro no COMMIT | chega como `PDOException` crua; o `ErroDeBanco` já trata as duas |
 
+Recusas acrescentadas depois da revisão de segurança da Fase 5 (só no canal
+site; `backend/README.md`, "Freios da reserva pelo site"):
+
+| Situação | Tratamento |
+|---|---|
+| O telefone já tem o máximo de reservas em aberto (`solicitado`/`confirmado`, início no futuro) | 422 `limite_de_reservas_em_aberto` |
+| Teto diário de reservas criadas pelo site atingido | 503 `indisponivel`, genérico (não diz que é um teto) |
+| Limite por telefone na criação (só reserva criada conta; o reenvio da mesma tentativa ainda recebe a reserva) | 429 `muitas_tentativas` + `Retry-After` |
+
 ## 6. Interface
 
 ```php

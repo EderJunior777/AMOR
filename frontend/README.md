@@ -55,7 +55,7 @@ ligando os dois mundos.
 | Catálogo | `GET /api/v1/servicos` e `/regioes`. O **slug** do `config.js` (`corte`, `zona-sul`...) casa com o `codigo` da API, e o **id vem da API**, nunca fixo no código. Preço, duração e taxa da região passam a ser os do servidor; serviço ou região sem par na API some. |
 | Profissional | `GET /api/v1/profissionais?servicos[]=` (o primeiro que faz o serviço). |
 | Horários | `GET /api/v1/disponibilidade` (a API confere expediente, antecedência, deslocamento e ocupação). |
-| Reserva | `POST /api/v1/reservas` com `Idempotency-Key`, uma por **tentativa de envio**. Sem resposta (falha de rede), reenviar o **mesmo** pedido usa a **mesma** chave: uma repetição automática e, depois, o botão. Mudou o pedido, chave nova. |
+| Reserva | `POST /api/v1/reservas` com `Idempotency-Key`, uma por **tentativa de envio**. Sem resposta (falha de rede ou tempo-limite de 20 s) ou com erro genérico (500, 502, 504: a reserva pode ter sido gravada), a tentativa continua: reenviar o **mesmo** pedido usa a **mesma** chave (a API devolve a reserva que já existe). Só a rede tem uma repetição automática; depois, o botão. Resposta definitiva (409, 422, 429, 503) ou pedido mudado: chave nova. |
 | Erros | 409: "esse horário acabou de ser ocupado", e os horários são recarregados. 422: a mensagem do código que a API mandou. 429/503: "tente de novo em instantes", **sem** repetição automática. |
 | Sucesso | Mostra o **código da reserva** (a credencial, junto com o telefone) e **não** pula sozinho para o WhatsApp, para o cliente ver o código. O botão do WhatsApp continua lá. O código não vai na mensagem do WhatsApp. |
 | Minha reserva | Seção que só aparece com a flag: consultar, remarcar e cancelar por código + telefone (`POST /api/v1/reservas/consultar|remarcar|cancelar`). |
@@ -68,6 +68,21 @@ Dados do cliente e respostas da API só entram na página por `textContent`.
 
 `sw.js` **nunca** guarda `/api/*` em cache (agenda de hoje e nova, qualquer
 método ou modo); só os arquivos do site. Coberto por `npm run test:sw`.
+
+Os arquivos do site são servidos do cache primeiro e atualizados por baixo
+(quem já visitou roda a versão antiga uma vez). Por isso **toda mudança em
+JS/CSS publicada sobe `VERSAO` no `sw.js`**: a versão nova apaga o cache
+antigo. Esta etapa subiu para `barbearia-v2`, o que invalida o cache dos
+visitantes uma vez, mesmo com a flag desligada (é a única diferença visível
+para quem já tinha o site em cache).
+
+## Limites da API numa visita
+
+Com a flag ligada, uma visita faz em geral 4 chamadas (catálogo, regiões,
+profissional e os horários de hoje, compartilhados entre os dois cartões da
+capa), e até 10 se os próximos dias estiverem lotados. O limite padrão por
+IP é 60/min (`API_LIMITE_GERAL_POR_MINUTO`): dimensionar na homologação com
+muitos clientes no mesmo Wi-Fi.
 
 ## Testes
 
@@ -87,7 +102,7 @@ método ou modo); só os arquivos do site. Coberto por `npm run test:sw`.
 | `assets/app.js` | Fluxo de agendamento; os ramos da agenda nova só rodam com a flag. |
 | `agenda.html`, `assets/admin.js` | Painel do barbeiro (Blobs e PIN), **não alterados** nesta etapa. |
 | `netlify/functions/` | Agenda de hoje (Blobs), **não alterada**. |
-| `testes/servidor-homologacao.mjs` | Servidor de homologação da agenda nova. |
+| `testes/servidor-homologacao.mjs` | Servidor de homologação da agenda nova (só em 127.0.0.1, só os arquivos do site). |
 
 ## Pendente para publicar (etapa 6)
 
