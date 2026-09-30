@@ -65,4 +65,19 @@ class ErrosDaApiTest extends ApiTestCase
         $this->assertStringNotContainsString('segredo', (string) $r->getContent());
         $this->assertStringNotContainsString('trace', (string) $r->getContent());
     }
+
+    /**
+     * Erro HTTP do framework (abort, manutencao...) mantem o status, com
+     * corpo fixo. Regressao: sem o `use` de HttpExceptionInterface no
+     * bootstrap/app.php, o instanceof nunca casava e tudo virava 500.
+     */
+    public function test_erro_http_do_framework_mantem_o_status_com_corpo_fixo(): void
+    {
+        Route::post('/api/v1/_teste-abort', fn () => abort(413, 'detalhe interno segredo'));
+
+        $r = $this->postJson('/api/v1/_teste-abort')->assertStatus(413);
+
+        $this->assertSame(['mensagem' => 'Requisicao recusada.', 'codigo' => 'requisicao_recusada'], $r->json());
+        $this->assertStringNotContainsString('segredo', (string) $r->getContent());
+    }
 }
