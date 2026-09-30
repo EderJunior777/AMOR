@@ -1,6 +1,7 @@
 # CLEISON: backend (Laravel + PostgreSQL)
 
-Etapa 1: fundação de dados. **Sem API de negócio, login ou painel ainda.**
+Etapa 2: agenda integrada. **API pública v1 implementada** (`/api/v1/*`, domínio
+`ReservarHorario`). Sem painel, login, MFA nem confirmação HTTP ainda (etapa 3).
 Arquitetura e decisões: [`../docs/ARQUITETURA.md`](../docs/ARQUITETURA.md).
 Relatório da revisão: [`../docs/REVISAO-ETAPA-1.md`](../docs/REVISAO-ETAPA-1.md).
 
@@ -144,6 +145,10 @@ vendor/bin/pint --test                         # estilo
   profissional de propósito e espera o PostgreSQL detectar deadlocks
   (`deadlock_timeout` = 1 s). Para ver o resumo desse caso:
   `CLEISON_RELATORIO_CONCORRENCIA=1 vendor/bin/phpunit --filter ConcorrenciaTest`.
+- Etapa 2: domínio da reserva em `tests/Feature/Agenda/` (validações, idempotência,
+  consulta/cancelamento/remarcação, expiração de `solicitado`, máximo em aberto,
+  concorrência com COMMIT real) e API HTTP em `tests/Feature/Api/` (contrato, erros,
+  limites por IP/telefone/código/rota, teto diário).
 
 ## PostgreSQL local: travamento e recuperação responsável
 
@@ -458,7 +463,8 @@ Implementação: [`app/Http/Controllers/SaudeController.php`](app/Http/Controlle
 Use para o health check do balanceador.
 
 `GET /` — responde 204 (sem corpo) quando a aplicação está pronta. Rotas públicas
-e de negócio não existem nesta etapa.
+de negócio em `/api/v1` (etapa 2): serviços, regiões, disponibilidade, reserva,
+consulta, cancelamento, remarcação. O painel administrativo é da etapa 3.
 
 ## Empacotar para revisão ou distribuição
 
@@ -582,10 +588,19 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
 | `app/Support/ChaveDeLimite.php` | Chave HMAC dos limites da API (nunca guarda telefone, código nem IP crus) |
 | `app/Domain/Agenda/AgendaSobrecarregada.php` | Teto diário de reservas do site atingido (503 genérico) |
 | `app/Http/Controllers/SaudeController.php` | `GET /up`: confere banco sem expor detalhe de conexão (503 se falhar) |
+| `routes/api.php` | Rotas da API v1 (`/api/v1/*`): serviços, regiões, disponibilidade, reserva, consulta, cancelamento, remarcação |
+| `app/Http/Controllers/Api/` | `CatalogoController`, `DisponibilidadeController` e `ReservaController` (criação idempotente com o limite por telefone, consulta, cancelamento, remarcação) |
+| `app/Http/Requests/Api/*.php` | Validação só de formato (`ReservarRequest`, `DisponibilidadeRequest`, `ProfissionaisRequest`, `ReservaExistenteRequest`, `RemarcarRequest`); a regra comercial é do domínio |
+| `app/Http/Resources/` | Respostas JSON estruturadas (agendamento, disponibilidade, serviços) |
+| `app/Domain/Agenda/ReservarHorario.php` | Lógica de negócio: validações V1–V8, cálculo de períodos, idempotência, freios |
+| `app/Domain/Agenda/` | Suporte: `CalculoDeReserva`, `ConsultarDisponibilidade`, `CatalogoDaReserva`, `PedidoDeReserva`, `ResultadoDaReserva`, `RepetirEmConflito`, `JanelasDeExpediente`, `SnapshotServico`, `SnapshotRegiao` |
+| `app/Domain/Agenda/ReservaRecusada.php` | Exceção de recusa de regra, com código estável e mensagem fixa (422 na API) |
 | `config/cleison.php` | Retenção LGPD (prazo e responsável, sem padrão), freios da reserva, limites da API e `API_ATRAS_DE_PROXY` |
 | `routes/console.php` | Agenda: `cleison:expirar-solicitados` a cada 5 minutos; `cleison:anonimizar-inativos` às 03:30 e `cleison:limpar-idempotencia` às 03:45 de São Paulo |
 | `database/seeders/DemonstracaoSeeder.php` | Dados de exemplo do ZIP, identificados |
 | `tests/Feature/Banco/` | Constraints, ocupação, estados, privilégios, concorrência, migrations, anonimização |
+| `tests/Feature/Agenda/` | Domínio da reserva: V1 a V8, idempotência, consulta/cancelamento/remarcação, expiração, máximo em aberto, concorrência com COMMIT real |
+| `tests/Feature/Api/` | API HTTP v1: contrato, varredura sem dado de terceiros, erros, limites (IP, telefone, código, global por rota), teto diário |
 | `tests/Suporte/` | Helpers, trait `BancoDeTeste`, processo filho da concorrência |
 | `docs/LGPD-ANONIMIZACAO.md` | Especificação completa da anonimização (D1–D8, decisões, funções SQL) |
 | `docs/ESPEC-RESERVA.md` | Especificação da reserva de horário (etapa 2, E1–E5, decisões) |

@@ -3,7 +3,7 @@
 | # | Etapa | Estado |
 |---|---|---|
 | 1 | Fundação PHP/SQL | **Entregue e revisada** (24/09/2026; revisão 2 com correções pós-revisão externa), verificável localmente |
-| 2 | Agenda integrada (API + integração mínima no site) | Não iniciada |
+| 2 | Agenda integrada (API + integração mínima no site) | **Implementada na branch etapa-2-agenda, PR em revisão** |
 | 3 | Administração e operação (login, MFA, permissões, painel) | Não iniciada |
 | 4 | Recebimentos | Não iniciada |
 | 5 | Fechamento dos recebimentos registrados | Não iniciada |
@@ -49,6 +49,35 @@ Detalhes, comandos e limitações: [REVISAO-ETAPA-1.md](REVISAO-ETAPA-1.md).
 | Legado `frontend/testes/cliente.test.mjs` | 23 verificações ok |
 | Legado na raiz original (referência, sem correção) | 36 ok, **7 falhas** (baseline preservado) |
 | Instalação a partir do ZIP em pasta limpa + cluster novo | ver REVISAO-ETAPA-1.md |
+
+## Etapa 2: o que existe
+
+- API pública v1 (`/api/v1/*`): rotas de serviços, regiões, disponibilidade,
+  criação de reserva (idempotente), consulta, cancelamento e remarcação.
+- Domínio `ReservarHorario` (validações V1–V8), canais, cálculo de períodos,
+  expediente e exceções, histórico de eventos, snapshot de preço/duração.
+- Freios de reserva: expiração `solicitado` (12 h), máximo por telefone (2 em
+  aberto), teto diário do site (500). Taxa do deslocamento snapshot.
+- Limpeza diária da idempotência: chave + hash anuladas após 7 dias
+  (migration `2026_09_30_000400`, função `cleison_limpar_idempotencia`).
+- Integração no site (etapa 2, Fase 7): flag `CONFIG.agendaNova.ligada` em
+  `frontend/assets/config.js` (desligada por padrão). Agenda nova só para
+  homologação; painel antigo não vê reservas da API.
+- Rate limit da API pública: por IP (desligável), por telefone (criação), por
+  código (consulta/cancelar/remarcar), global por rota.
+- Testes: backend 632 verdes (PHPUnit + Pint), legacy 74 ok, `test:agenda-v1`
+  42 ok, `test:sw` 20 ok, `test:api-v1` 27 ok (contra servidor real).
+  Prova de clone limpo (`composer install` + `npm ci` pelos locks) com a
+  mesma contagem. Smoke no Chrome: flag ligada (409, reserva, código,
+  consultar/remarcar/cancelar, reenvio com a mesma chave após 502, só
+  `/api/v1` na rede) e desligada (só `/api/agenda`).
+
+## Etapa 2: o que NÃO existe
+
+Painel/login/MFA (etapa 3), endpoint HTTP de confirmação (só comando
+`cleison:confirmar-agendamento`), verificação de telefone/captcha (pré-requisito
+etapa 6), publicação Netlify, redirect `/api/v1` no `netlify.toml`, importação
+dos Blobs (etapa 6).
 
 ## Etapa 2: agenda integrada (critérios)
 

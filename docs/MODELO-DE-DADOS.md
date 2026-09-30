@@ -122,6 +122,12 @@ ou em_atendimento), `agendamentos_transicao_estado`,
 cancelado ou falta), `agendamentos_com_servico` e
 `agendamentos_duracao_dos_itens` (conferidos no COMMIT).
 
+**Limpeza da idempotência.** Função `cleison_limpar_idempotencia` (migration
+`2026_09_30_000400`, etapa 2, Fase 6) anula `chave_idempotencia` e
+`hash_requisicao` dos agendamentos criados há mais de 7 dias (só as duas colunas, juntas;
+exceção estreita na imutabilidade do encerrado). Executada diariamente às
+03:45 São Paulo pelo agendador (`cleison:limpar-idempotencia`).
+
 **Snapshot × referência atual**
 
 | Dado | Como fica | Protegido depois de encerrar |

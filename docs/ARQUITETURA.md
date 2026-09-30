@@ -1,8 +1,9 @@
 # Arquitetura — CLEISON
 
-> Estado: **etapa 1 (fundação PHP/SQL), revisada**. Não é um sistema
-> concluído: não há API de negócio, login, painel nem integração com o site.
-> O site em produção continua sendo o original (Netlify).
+> Estado: **etapa 2 (agenda integrada, API v1), em revisão**. API pública
+> implementada com domínio `ReservarHorario`, freios de reserva e integração do
+> site (desligada, homologação). Sem login, painel, MFA nem HTTP de confirmação
+> ainda (etapa 3). O site em produção continua sendo o original (Netlify).
 
 ## 1. Estrutura do repositório
 
@@ -92,7 +93,7 @@ Migration: `backend/database/migrations/2026_09_24_000300_criar_clientes_e_agend
     `40P01` — nenhum gravou nada. A exclusão sozinha já impede reserva dupla.
 - **Papel da aplicação não consegue desligar nada disso** (seção 6).
 
-### Contrato para a API da etapa 2 (planejado, não implementado)
+### Contrato para a API da etapa 2 (implementado, etapa 2 Fases 1–5)
 
 - Transação por reserva: agendamento + itens; itens conferidos no COMMIT.
 - `23P01` → HTTP 409 "horário ocupado". `40P01`/`40001` → repetir (até 3×).
@@ -178,10 +179,11 @@ proprietário tudo.
 | Dinheiro ≥ 0 em centavos, durações > 0, intervalos válidos e finitos | CHECK | **Implementado e testado** |
 | Referências válidas, histórico não apagável | FK `RESTRICT` | **Implementado e testado** |
 | Papel de runtime sem DDL | Privilégios do PostgreSQL | **Implementado e testado** (cluster local) |
-| Data real, passado, antecedência, horizonte, expediente, grade | Aplicação (etapa 2) | **Planejado** |
-| Profissional/serviço/região ativos e habilitados | Aplicação (etapa 2) | **Planejado** |
+| Data real, passado, antecedência, horizonte, expediente, grade | Aplicação (domínio `ReservarHorario`, V1–V8; catálogo no banco, migration `2026_09_30_000100`) | **Implementado e testado** |
+| Profissional/serviço/região ativos e habilitados | Aplicação (domínio, revalidação na transação `FOR SHARE`) | **Implementado e testado** |
 | Idempotência (mesma chave + mesmo corpo = mesma reserva) | UNIQUE + `ReservarHorario`; limpeza diária após 7 dias (`cleison_limpar_idempotencia`) | **Implementado e testado** (etapa 2) |
-| Login, MFA, autorização, CSRF, rate limit | Etapa 3 | **Planejado** |
+| Login, MFA, autorização, CSRF | Etapa 3 | **Planejado** |
+| Rate limit (API pública) | Etapa 2 (por IP/telefone/código/rota) | **Implementado e testado** |
 
 ## 8. Como a concorrência é testada
 
