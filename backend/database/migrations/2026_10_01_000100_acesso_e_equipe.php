@@ -12,21 +12,36 @@ use Illuminate\Support\Facades\DB;
  *
  *   auditoria_acessos        quem entrou, quem saiu, quem falhou, e a gestao
  *                            da equipe (criar, desativar, reativar, redefinir
- *                            senha). SO insercao: o banco recusa UPDATE e
- *                            DELETE (trigger, vale ate para o dono) e o papel
- *                            da aplicacao nao tem UPDATE, DELETE nem TRUNCATE.
+ *                            senha). SO insercao para a aplicacao:
+ *                              - o trigger recusa UPDATE e DELETE, ate para o
+ *                                dono;
+ *                              - o papel da aplicacao nao tem UPDATE, DELETE
+ *                                nem TRUNCATE e so insere as colunas de
+ *                                conteudo (nao escolhe id nem ocorrido_em: a
+ *                                data e a hora sao do banco).
+ *                            O DONO ainda pode TRUNCATE, DROP e desligar o
+ *                            trigger (como em anonimizacoes): isso e protegido
+ *                            pela separacao de papeis (so o pipeline de
+ *                            deploy tem a senha do dono), nao por esta tabela.
  *
  * Nenhum dado pessoal novo:
  *   - NUNCA ha senha nem IP (o limite por IP existe so no cache);
- *   - email_tentado so existe em falha de login de e-mail que NAO pertence a
- *     nenhum usuario (quando ha usuario, vale usuario_id), e so se tiver
- *     formato de e-mail: uma senha digitada por engano no campo de e-mail
- *     nunca chega ao banco (a aplicacao descarta; este CHECK garante).
+ *   - email_tentado so existe em falha ou bloqueio de login de um e-mail que
+ *     NAO pertence a nenhum usuario (quando ha usuario, vale usuario_id).
+ *     A garantia de que uma senha digitada por engano no campo de e-mail nao
+ *     chega aqui e da APLICACAO (descarta o campo se o usuario existe ou se
+ *     o formato nao for o de e-mail). O CHECK so barra o que claramente nao e
+ *     e-mail (sem arroba, com espaco, dominio sem sufixo alfabetico) e nao
+ *     separa senha de e-mail pelo formato: texto como "a@b.com" passa.
  */
 return new class extends Migration
 {
     public function up(): void
     {
+        // Falha rapido em vez de enfileirar o login atras de uma transacao longa
+        // (o ALTER pede ACCESS EXCLUSIVE em users).
+        DB::unprepared("SET LOCAL lock_timeout = '5s'");
+
         DB::unprepared(<<<'SQL'
             ALTER TABLE public.users
               ADD COLUMN senha_temporaria boolean NOT NULL DEFAULT false,
@@ -56,13 +71,15 @@ return new class extends Migration
                 OR (autor_id IS NOT NULL AND usuario_id IS NOT NULL AND resultado = 'sucesso')),
               -- Acesso nao tem autor.
               CONSTRAINT auditoria_acessos_acesso_sem_autor CHECK (evento NOT IN ('login', 'logout', 'senha_trocada') OR autor_id IS NULL),
-              -- E-mail: so em falha de login sem usuario, com formato de e-mail.
+              -- E-mail: so em falha ou bloqueio de login sem usuario, em formato de
+              -- e-mail ja normalizado (minusculo, sem espacos, sufixo alfabetico).
               CONSTRAINT auditoria_acessos_email_so_na_falha CHECK (
                 email_tentado IS NULL
                 OR (evento = 'login' AND resultado IN ('falha', 'bloqueado') AND usuario_id IS NULL
-                    AND email_tentado ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' AND email_tentado = lower(btrim(email_tentado)))),
+                    AND email_tentado ~ '^[^@\s]+@[a-z0-9.-]+\.[a-z]{2,}$'
+                    AND email_tentado = lower(btrim(email_tentado)))),
               -- Quem saiu ou trocou a senha e identificado; login com sucesso tambem.
-              CONSTRAINT auditoria_acessos_sucesso_identificado CHECK (
+              CONSTRAINT auditoria_acessos_saida_e_troca_identificadas CHECK (
                 evento NOT IN ('logout', 'senha_trocada') OR usuario_id IS NOT NULL),
               CONSTRAINT auditoria_acessos_login_sucesso_identificado CHECK (
                 NOT (evento = 'login' AND resultado = 'sucesso') OR usuario_id IS NOT NULL)
@@ -81,8 +98,8 @@ return new class extends Migration
               BEFORE UPDATE OR DELETE ON public.auditoria_acessos
               FOR EACH ROW EXECUTE FUNCTION public.cleison_auditoria_acessos_somente_insercao();
 
-            -- A aplicacao so insere e le: sem UPDATE, DELETE nem TRUNCATE para
-            -- nenhum papel que nao seja o dono, inclusive PUBLIC.
+            -- Fecha tudo para qualquer papel que nao seja o dono, inclusive PUBLIC;
+            -- logo abaixo a aplicacao recebe so o INSERT das colunas de conteudo.
             DO $$
             DECLARE
               r record;
@@ -93,17 +110,34 @@ return new class extends Migration
                  CROSS JOIN LATERAL pg_catalog.aclexplode(c.relacl) a
                  WHERE c.oid = 'public.auditoria_acessos'::regclass
                    AND a.grantee <> c.relowner
-                   AND a.privilege_type IN ('UPDATE', 'DELETE', 'TRUNCATE')
+                   AND a.privilege_type IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
               LOOP
-                EXECUTE pg_catalog.format('REVOKE UPDATE, DELETE, TRUNCATE ON public.auditoria_acessos FROM %s',
+                EXECUTE pg_catalog.format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.auditoria_acessos FROM %s',
                   CASE WHEN r.grantee = 0 THEN 'PUBLIC' ELSE pg_catalog.quote_ident(pg_catalog.pg_get_userbyid(r.grantee)) END);
               END LOOP;
             END $$;
         SQL);
+
+        // A aplicacao insere (login, logout, falha) e le, nada alem. INSERT por
+        // coluna: id (sequencia) e ocorrido_em (now()) nao sao dela. O USAGE da
+        // sequencia vem dos default privileges do papel (backend/README.md).
+        $papel = (string) config('database.connections.pgsql.username');
+        $papelSql = DB::scalar('SELECT pg_catalog.quote_ident(?)', [$papel]);
+        DB::statement("GRANT INSERT (usuario_id, autor_id, evento, resultado, email_tentado) ON public.auditoria_acessos TO {$papelSql}");
+        DB::statement("GRANT SELECT ON public.auditoria_acessos TO {$papelSql}");
     }
 
+    /**
+     * Recusa desfazer com registros: a auditoria e imutavel, e apagar a tabela
+     * apagaria a trilha em silencio.
+     */
     public function down(): void
     {
+        if ((bool) DB::scalar("SELECT to_regclass('public.auditoria_acessos') IS NOT NULL")
+            && (int) DB::scalar('SELECT count(*) FROM public.auditoria_acessos') > 0) {
+            throw new RuntimeException('Ha registros em auditoria_acessos; desfazer esta migration apagaria a trilha de auditoria.');
+        }
+
         DB::unprepared(<<<'SQL'
             DROP TABLE IF EXISTS public.auditoria_acessos;
             DROP FUNCTION IF EXISTS public.cleison_auditoria_acessos_somente_insercao();

@@ -63,6 +63,7 @@ class AuditoriaDeAcessosTest extends TestCase
         $this->registrar(['evento' => 'login', 'resultado' => 'falha', 'usuario_id' => $alvo]);
         $this->registrar(['evento' => 'login', 'resultado' => 'bloqueado', 'usuario_id' => $alvo]);
         $this->registrar(['evento' => 'login', 'resultado' => 'falha', 'email_tentado' => 'ninguem@exemplo.com']);
+        $this->registrar(['evento' => 'login', 'resultado' => 'bloqueado', 'email_tentado' => 'ninguem@exemplo.com.br']);
         $this->registrar(['evento' => 'login', 'resultado' => 'falha']); // e-mail descartado pela aplicacao
         $this->registrar(['evento' => 'logout', 'resultado' => 'logout', 'usuario_id' => $alvo]);
         $this->registrar(['evento' => 'senha_trocada', 'usuario_id' => $alvo]);
@@ -70,7 +71,7 @@ class AuditoriaDeAcessosTest extends TestCase
             $this->registrar(['evento' => $evento, 'usuario_id' => $alvo, 'autor_id' => $autor]);
         }
 
-        $this->assertSame(11, DB::table('auditoria_acessos')->count());
+        $this->assertSame(12, DB::table('auditoria_acessos')->count());
         $this->assertNotNull(DB::table('auditoria_acessos')->value('ocorrido_em'), 'a data e hora vem do banco');
     }
 
@@ -90,7 +91,12 @@ class AuditoriaDeAcessosTest extends TestCase
             'e-mail junto com usuario' => ['auditoria_acessos_email_so_na_falha', ['evento' => 'login', 'resultado' => 'falha', 'usuario_id' => 'ALVO', 'email_tentado' => 'a@exemplo.com']],
             'texto que nao e e-mail (senha digitada no campo)' => ['auditoria_acessos_email_so_na_falha', ['evento' => 'login', 'resultado' => 'falha', 'email_tentado' => 'MinhaSenhaSecreta123']],
             'e-mail fora do formato normalizado' => ['auditoria_acessos_email_so_na_falha', ['evento' => 'login', 'resultado' => 'falha', 'email_tentado' => 'Fulano@Exemplo.com']],
-            'logout sem usuario' => ['auditoria_acessos_sucesso_identificado', ['evento' => 'logout', 'resultado' => 'logout']],
+            // Limite honesto do CHECK: "a@b.com" parece e-mail e passa (a aplicacao descarta). Aqui, o que ele barra:
+            'senha com arroba e ponto, sufixo numerico' => ['auditoria_acessos_email_so_na_falha', ['evento' => 'login', 'resultado' => 'falha', 'email_tentado' => 'p@ssw0rd.2024']],
+            'e-mail com espaco' => ['auditoria_acessos_email_so_na_falha', ['evento' => 'login', 'resultado' => 'falha', 'email_tentado' => 'fulano @exemplo.com']],
+            'e-mail em bloqueio com usuario' => ['auditoria_acessos_email_so_na_falha', ['evento' => 'login', 'resultado' => 'bloqueado', 'usuario_id' => 'ALVO', 'email_tentado' => 'a@exemplo.com']],
+            'logout sem usuario' => ['auditoria_acessos_saida_e_troca_identificadas', ['evento' => 'logout', 'resultado' => 'logout']],
+            'senha trocada sem usuario' => ['auditoria_acessos_saida_e_troca_identificadas', ['evento' => 'senha_trocada']],
             'login com sucesso sem usuario' => ['auditoria_acessos_login_sucesso_identificado', ['evento' => 'login', 'resultado' => 'sucesso']],
         ];
     }
@@ -127,6 +133,54 @@ class AuditoriaDeAcessosTest extends TestCase
         }
 
         $this->assertSame(1, DB::table('auditoria_acessos')->count());
+    }
+
+    public function test_a_aplicacao_nao_escolhe_id_nem_data_e_hora(): void
+    {
+        $alvo = $this->usuario();
+
+        foreach ([
+            ['id' => 999, 'evento' => 'login', 'resultado' => 'sucesso', 'usuario_id' => $alvo],
+            ['ocorrido_em' => '2020-01-01 00:00:00+00', 'evento' => 'login', 'resultado' => 'sucesso', 'usuario_id' => $alvo],
+        ] as $linha) {
+            DB::statement('SAVEPOINT tentativa');
+            try {
+                DB::table('auditoria_acessos')->insert($linha);
+                $this->fail('A aplicacao nao deveria poder gravar '.implode(',', array_keys($linha)));
+            } catch (QueryException $e) {
+                $this->assertSame('42501', $e->errorInfo[0], 'insufficient_privilege');
+            } finally {
+                DB::statement('ROLLBACK TO SAVEPOINT tentativa');
+            }
+        }
+
+        $id = $this->registrar(['evento' => 'login', 'usuario_id' => $alvo]);
+        $this->assertNotSame(999, $id, 'o id e da sequencia');
+        $segundos = (int) DB::scalar('SELECT abs(extract(epoch FROM (now() - ocorrido_em))) FROM auditoria_acessos WHERE id = ?', [$id]);
+        $this->assertLessThan(60, $segundos, 'a data e a hora sao do banco (now())');
+    }
+
+    public function test_ninguem_alem_do_dono_tem_update_delete_truncate_nem_insert_de_tabela_inteira(): void
+    {
+        $perigosos = DB::select(<<<'SQL'
+            SELECT a.privilege_type, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(a.grantee) END AS papel
+              FROM pg_catalog.pg_class c
+             CROSS JOIN LATERAL pg_catalog.aclexplode(c.relacl) a
+             WHERE c.oid = 'public.auditoria_acessos'::regclass
+               AND a.grantee <> c.relowner
+               AND a.privilege_type IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
+        SQL);
+
+        $this->assertSame([], $perigosos, 'PUBLIC e a aplicacao nao tem privilegio de tabela inteira para escrever');
+    }
+
+    public function test_o_autor_com_auditoria_nao_pode_ser_apagado(): void
+    {
+        $autor = $this->usuario('autor-fk@exemplo.com');
+        $alvo = $this->usuario();
+        $this->registrar(['evento' => 'usuario_criado', 'usuario_id' => $alvo, 'autor_id' => $autor]);
+
+        $this->assertBancoRecusa('auditoria_acessos_autor_id_fkey', fn () => DB::table('users')->where('id', $autor)->delete());
     }
 
     public function test_nem_o_dono_altera_ou_apaga_o_registro(): void
