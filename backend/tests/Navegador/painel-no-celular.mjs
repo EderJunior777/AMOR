@@ -44,6 +44,9 @@ const DONO_SENHA = process.env.PAINEL_DONO_SENHA || '';
 const PASTA = process.env.PAINEL_CAPTURAS || join(tmpdir(), 'painel-capturas');
 const PULAR_ESPERA = process.env.PAINEL_PULAR_ESPERA === '1';
 const VIEWPORT = { width: 390, height: 844 };
+// Nomes dos pedidos de teste levam um sufixo unico por execucao: sobras de rodadas
+// anteriores com o mesmo nome fariam o Playwright achar dois cartoes (modo estrito).
+const CORRIDA = Date.now().toString(36);
 
 let falhas = 0;
 
@@ -86,6 +89,19 @@ async function verificar(descricao, funcao) {
 }
 
 function afirmar(condicao, mensagem) { if (!condicao) { throw new Error(mensagem); } }
+
+/**
+ * Espera o texto aparecer. Depois de um POST que redireciona para a MESMA
+ * pagina, waitForURL ja esta satisfeito antes do clique e nao espera nada (o
+ * WebKit, mais lento que o Chrome, mostra isso): o que vale e o texto da resposta.
+ */
+async function esperarTexto(pagina, texto) {
+  try {
+    await pagina.getByText(texto).first().waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    throw new Error(`não apareceu "${texto}" em 10 s`);
+  }
+}
 
 /* ------------------------------------------------------- pedidos pela API */
 
@@ -151,14 +167,23 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
   });
   const pagina = await contexto.newPage();
   pagina.on('pageerror', (e) => problemas.push(`erro de JavaScript: ${e.message}`));
-  pagina.on('console', (m) => { if (m.type() === 'error' && !/favicon/i.test(m.text())) { problemas.push(`console: ${m.text()}`); } });
+  // O WebKit do Playwright injeta um estilo inline para fotografar a pagina e a CSP
+  // do painel (style-src 'self') o recusa: a mensagem aparece SO depois de uma
+  // captura e nao vem do painel. Ignorada por 3 s apos cada captura; as violacoes
+  // reais continuam pegas pelo evento securitypolicyviolation (window.__violacoesCsp).
+  let ultimaCaptura = 0;
+  pagina.on('console', (m) => {
+    if (m.type() !== 'error' || /favicon/i.test(m.text())) { return; }
+    if (/Refused to apply a stylesheet/.test(m.text()) && Date.now() - ultimaCaptura < 3000) { return; }
+    problemas.push(`console: ${m.text()}`);
+  });
 
   mkdirSync(PASTA, { recursive: true });
-  const captura = (nome) => pagina.screenshot({ path: join(PASTA, `${apelido}-${nome}.png`), fullPage: true });
+  const captura = (nome) => { ultimaCaptura = Date.now(); return pagina.screenshot({ path: join(PASTA, `${apelido}-${nome}.png`), fullPage: true }).finally(() => { ultimaCaptura = Date.now(); }); };
   const semRolagemLateral = () => pagina.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
-  const cliente1 = await criarPedido(`Cliente Navegador A ${apelido}`);
-  const cliente2 = await criarPedido(`Cliente Navegador B ${apelido}`);
+  const cliente1 = await criarPedido(`Cliente Navegador A ${apelido} ${CORRIDA}`);
+  const cliente2 = await criarPedido(`Cliente Navegador B ${apelido} ${CORRIDA}`);
 
   await verificar('a tela de entrada cabe em 390 px, com campos grandes e sem zoom no iPhone', async () => {
     await pagina.goto('/painel/entrar');
@@ -173,8 +198,9 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
   await verificar('login com senha errada mostra a mensagem igual e nao entra', async () => {
     await pagina.fill('input[name=email]', EMAIL);
     await pagina.fill('input[name=senha]', 'senha-errada-123');
-    await Promise.all([pagina.waitForURL('**/painel/entrar'), pagina.click('button[type=submit]')]);
-    afirmar(await pagina.getByText('E-mail ou senha incorretos.').isVisible(), 'sem a mensagem de erro');
+    // A URL nao muda (volta para /painel/entrar): espera o TEXTO, nao a URL.
+    await pagina.click('button[type=submit]');
+    await esperarTexto(pagina, 'E-mail ou senha incorretos.');
   });
 
   await verificar('login certo leva aos Pedidos com o contador no titulo', async () => {
@@ -200,8 +226,8 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
 
   await verificar('confirmar mostra "Avisar cliente no WhatsApp" com o link pronto (nao envia sozinho)', async () => {
     const cartao = pagina.locator('.cartao', { hasText: cliente1.nome });
-    await Promise.all([pagina.waitForURL(/\/painel\/?$/), cartao.getByRole('button', { name: 'Confirmar', exact: true }).click()]);
-    afirmar(await pagina.getByText('Pedido confirmado').isVisible(), 'sem o aviso "Pedido confirmado"');
+    await cartao.getByRole('button', { name: 'Confirmar', exact: true }).click();
+    await esperarTexto(pagina, 'Pedido confirmado');
     const link = pagina.getByRole('link', { name: 'Avisar cliente no WhatsApp' });
     const destino = await link.getAttribute('href');
     afirmar(/^https:\/\/wa\.me\/55\d{10,11}\?text=/.test(destino), `link inesperado: ${destino}`);
@@ -214,23 +240,28 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
     const cartao = pagina.locator('.cartao', { hasText: cliente2.nome });
     await cartao.locator('summary').click();
     await cartao.locator('textarea[name=motivo]').fill('Nesse horário não vou atender');
-    await Promise.all([pagina.waitForURL(/\/painel\/?$/), cartao.getByRole('button', { name: 'Confirmar recusa' }).click()]);
-    afirmar(await pagina.getByText('Pedido recusado').isVisible(), 'sem o aviso "Pedido recusado"');
+    await cartao.getByRole('button', { name: 'Confirmar recusa' }).click();
+    await esperarTexto(pagina, 'Pedido recusado');
     const destino = await pagina.getByRole('link', { name: 'Avisar cliente no WhatsApp' }).getAttribute('href');
     afirmar(!decodeURIComponent(destino).includes('não vou atender'), 'o motivo interno vazou para a mensagem do cliente');
   });
 
   await verificar('pedido novo aparece na faixa e no titulo ao voltar para a aba (visibilitychange)', async () => {
     await pagina.goto('/painel');
-    await pagina.locator('body').click(); // o primeiro toque libera o som
-    const novo = await criarPedido(`Cliente Navegador C ${apelido}`);
+    // O primeiro toque libera o som. NUNCA no centro do body: ali pode haver o botao
+    // Confirmar de um pedido de verdade (isso ja confirmou pedidos por engano).
+    await pagina.locator('h1').first().click();
+    const novo = await criarPedido(`Cliente Navegador C ${apelido} ${CORRIDA}`);
     await pagina.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     await pagina.locator('#faixa-novos').waitFor({ state: 'visible', timeout: 10000 });
     afirmar(/pedido novo/.test(await pagina.locator('#faixa-novos').innerText()), 'texto da faixa errado');
     afirmar(/^\(\d+\) Pedidos/.test(await pagina.title()), 'o título perdeu o contador');
     await pagina.getByRole('link', { name: 'Atualizar agora' }).click();
-    await pagina.waitForURL(/\/painel\/?$/);
-    afirmar(await pagina.locator('.cartao', { hasText: novo.nome }).count() === 1, '"Atualizar agora" não trouxe o pedido novo');
+    try {
+      await pagina.locator('.cartao', { hasText: novo.nome }).waitFor({ state: 'visible', timeout: 10000 });
+    } catch {
+      throw new Error('"Atualizar agora" não trouxe o pedido novo');
+    }
     afirmar(await pagina.locator('#faixa-novos').isHidden(), 'a faixa não sumiu depois de atualizar');
     await captura('04-pedido-novo');
   });
@@ -238,7 +269,7 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
   if (!PULAR_ESPERA) {
     await verificar('o relogio da atualizacao automatica (~25 s) tambem traz o pedido novo', async () => {
       await pagina.goto('/painel');
-      await criarPedido(`Cliente Navegador D ${apelido}`);
+      await criarPedido(`Cliente Navegador D ${apelido} ${CORRIDA}`);
       await pagina.locator('#faixa-novos').waitFor({ state: 'visible', timeout: 45000 });
     });
   }
@@ -247,10 +278,10 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
     await pagina.goto('/painel/agenda');
     const cartao = pagina.locator('.cartao', { hasText: cliente1.nome });
     afirmar(await cartao.count() === 1, 'a reserva confirmada não está na agenda');
-    await Promise.all([pagina.waitForURL(/\/painel\/agenda/), cartao.getByRole('button', { name: 'Iniciar atendimento' }).click()]);
-    afirmar(await pagina.getByText('Atendimento iniciado.').isVisible(), 'sem "Atendimento iniciado."');
-    await Promise.all([pagina.waitForURL(/\/painel\/agenda/), pagina.locator('.cartao', { hasText: cliente1.nome }).getByRole('button', { name: 'Concluir' }).click()]);
-    afirmar(await pagina.getByText('Atendimento concluído.').isVisible(), 'sem "Atendimento concluído."');
+    await cartao.getByRole('button', { name: 'Iniciar atendimento' }).click();
+    await esperarTexto(pagina, 'Atendimento iniciado.');
+    await pagina.locator('.cartao', { hasText: cliente1.nome }).getByRole('button', { name: 'Concluir' }).click();
+    await esperarTexto(pagina, 'Atendimento concluído.');
     afirmar(await semRolagemLateral(), 'a agenda tem rolagem lateral');
     await captura('05-agenda');
   });
