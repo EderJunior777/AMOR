@@ -8,6 +8,7 @@ use App\Console\Protegidos\ResetProtegido;
 use App\Console\Protegidos\RollbackProtegido;
 use App\Console\Protegidos\WipeProtegido;
 use App\Support\ChaveDeLimite;
+use App\Support\SessaoSemIp;
 use App\Support\TravaDeProducao;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Console\Migrations\FreshCommand;
@@ -20,6 +21,7 @@ use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -55,6 +57,16 @@ class AppServiceProvider extends ServiceProvider
         if ($proxies !== []) {
             TrustProxies::at($proxies);
         }
+
+        // Sessao no banco SEM ip_address e user_agent (o IP nunca vai para o banco).
+        Session::extend('database', function ($app) {
+            return new SessaoSemIp(
+                $app['db']->connection($app['config']['session.connection']),
+                $app['config']['session.table'],
+                $app['config']['session.lifetime'],
+                $app,
+            );
+        });
 
         $this->limitesDaApi();
     }
