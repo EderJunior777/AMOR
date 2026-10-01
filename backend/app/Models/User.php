@@ -32,6 +32,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'papel' => PapelUsuario::class,
             'ativo' => 'boolean',
+            'senha_temporaria' => 'boolean',
+            'ultimo_acesso_em' => 'immutable_datetime',
         ];
     }
 
