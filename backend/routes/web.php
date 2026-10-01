@@ -3,6 +3,7 @@
 use App\Http\Controllers\Painel\AcoesDaAgendaController;
 use App\Http\Controllers\Painel\AcoesDoPedidoController;
 use App\Http\Controllers\Painel\AgendaController;
+use App\Http\Controllers\Painel\EquipeController;
 use App\Http\Controllers\Painel\LoginController;
 use App\Http\Controllers\Painel\PedidosController;
 use App\Http\Controllers\Painel\SenhaController;
@@ -37,6 +38,13 @@ Route::prefix('painel')->name('painel.')->group(function () {
         Route::post('agenda/concluir', [AcoesDaAgendaController::class, 'concluir'])->name('agenda.concluir');
         Route::post('agenda/faltou', [AcoesDaAgendaController::class, 'faltou'])->name('agenda.faltou');
         Route::post('agenda/cancelar', [AcoesDaAgendaController::class, 'cancelar'])->name('agenda.cancelar');
+
+        // Equipe: so o proprietario (policy "gerirEquipe" em toda rota). O usuario-alvo vai por POST.
+        Route::get('equipe', [EquipeController::class, 'index'])->name('equipe');
+        Route::post('equipe/criar', [EquipeController::class, 'criar'])->name('equipe.criar');
+        Route::post('equipe/desativar', [EquipeController::class, 'desativar'])->name('equipe.desativar');
+        Route::post('equipe/reativar', [EquipeController::class, 'reativar'])->name('equipe.reativar');
+        Route::post('equipe/redefinir-senha', [EquipeController::class, 'redefinirSenha'])->name('equipe.redefinir');
 
         Route::post('sair', [LoginController::class, 'sair'])->name('sair');
         Route::get('conta/senha', [SenhaController::class, 'formulario'])->name('conta.senha');

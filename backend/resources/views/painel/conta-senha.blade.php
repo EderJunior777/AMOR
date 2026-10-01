@@ -3,7 +3,10 @@
 @section('titulo', 'Trocar senha')
 
 @section('conteudo')
-    <h1 class="titulo">Trocar minha senha</h1>
+    <h1 class="titulo">Minha conta</h1>
+    <p class="ajuda">Você entrou como <strong>{{ auth()->user()->name }}</strong> ({{ auth()->user()->papel->rotulo() }}).</p>
+
+    <h2 class="subtitulo">Trocar minha senha</h2>
 
     @if ($temporaria)
         <p class="aviso" role="status">Por segurança, troque a senha temporária antes de continuar.</p>
@@ -32,6 +35,18 @@
             <input type="password" name="senha_nova_confirmation" required minlength="12" maxlength="72" autocomplete="new-password">
         </label>
         <button class="botao botao--principal" type="submit">Trocar senha</button>
+    </form>
+
+    <h2 class="subtitulo">Sair</h2>
+    <form method="post" action="/painel/sair" class="formulario">
+        @csrf
+        <button class="botao botao--enorme botao--perigo" type="submit">Sair</button>
+    </form>
+
+    <h2 class="subtitulo">Sair</h2>
+    <form method="post" action="/painel/sair" class="formulario">
+        @csrf
+        <button class="botao botao--enorme botao--perigo" type="submit">Sair</button>
     </form>
 
     @unless ($temporaria)

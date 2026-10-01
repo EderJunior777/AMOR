@@ -76,6 +76,25 @@ class TrocaDeSenhaTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\sstyle\s*=/i', $html);
     }
 
+    public function test_a_tela_de_conta_mostra_quem_entrou_e_tem_o_botao_de_sair(): void
+    {
+        $this->logado();
+
+        $html = $this->get('/painel/conta/senha')->getContent();
+
+        $this->assertStringContainsString('Fulano Silva Santos', $html);
+        $this->assertMatchesRegularExpression('/<form[^>]*action="\/painel\/sair"[^>]*>.*?name="_token".*?Sair/s', $html, 'sair e um POST com CSRF');
+        $this->post('/painel/sair')->assertRedirect('/painel/entrar');
+        $this->assertGuest();
+    }
+
+    public function test_quem_esta_com_senha_temporaria_tambem_ve_o_botao_de_sair(): void
+    {
+        $this->logado(['senha_temporaria' => true]);
+
+        $this->get('/painel/conta/senha')->assertSee('action="/painel/sair"', false);
+    }
+
     public function test_troca_com_senha_temporaria_libera_o_painel_e_derruba_as_outras_sessoes(): void
     {
         $usuario = $this->logado(['senha_temporaria' => true]);
