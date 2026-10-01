@@ -42,6 +42,25 @@ return [
     ],
 
     /*
+     * Painel do operador (etapa 3): limite de tentativas de login, no CACHE
+     * (nunca no banco nem no log; as chaves sao HMAC, sem e-mail nem IP crus).
+     *
+     *   login_max_falhas_por_email: falhas por e-mail (existente ou nao: igual,
+     *     para nao revelar quem tem conta) ate bloquear, de qualquer IP.
+     *   login_max_falhas_por_ip: falhas por IP, de qualquer e-mail.
+     *   login_janela_minutos: duracao da janela e do bloqueio (inteiro >= 1).
+     * Bloqueado, nem a senha certa entra ate a janela acabar. Login certo zera
+     * as falhas do e-mail (as do IP seguem).
+     */
+    'painel' => [
+        'login_max_falhas_por_email' => env('PAINEL_LOGIN_MAX_FALHAS_POR_EMAIL', 5),
+        'login_max_falhas_por_ip' => env('PAINEL_LOGIN_MAX_FALHAS_POR_IP', 20),
+        'login_janela_minutos' => env('PAINEL_LOGIN_JANELA_MINUTOS', 15),
+        // Senha atual errada na tela de troca de senha: falhas por usuario na janela.
+        'troca_senha_max_falhas' => env('PAINEL_TROCA_SENHA_MAX_FALHAS', 5),
+    ],
+
+    /*
      * API publica v1 (routes/api.php). Limites de requisicao, em tentativas
      * por janela, contados por IP e (na criacao) por telefone normalizado ou
      * (na reserva existente) por IP + codigo. Padroes conservadores; cada

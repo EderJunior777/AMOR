@@ -1,0 +1,131 @@
+/* Painel do barbeiro: CSS proprio, mobile-first (320 a 430 px), sem hover-only.
+   Sem estilo inline em nenhuma pagina: a CSP so aceita este arquivo. */
+
+:root {
+  --fundo: #f6f5f2;
+  --papel: #ffffff;
+  --texto: #1c1b19;
+  --suave: #5c5a55;
+  --linha: #d9d6cf;
+  --destaque: #1f5eff;
+  --destaque-texto: #ffffff;
+  --perigo: #b3261e;
+  --perigo-fundo: #fdecea;
+  --aviso-fundo: #fff4d6;
+  --raio: 14px;
+  --toque: 3.25rem; /* alvo de toque confortavel: 52 px */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #121212;
+    --papel: #1d1d1d;
+    --texto: #f1efe9;
+    --suave: #b2afa7;
+    --linha: #3a3935;
+    --destaque: #6c93ff;
+    --destaque-texto: #0b0b0b;
+    --perigo: #ff8a80;
+    --perigo-fundo: #3a1b19;
+    --aviso-fundo: #3a3118;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.pagina {
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+}
+
+.titulo { font-size: 1.5rem; line-height: 1.25; margin: 0.5rem 0 1rem; }
+
+.formulario { display: grid; gap: 1rem; margin: 1rem 0; }
+
+.campo { display: grid; gap: 0.375rem; }
+.campo__rotulo { font-weight: 600; }
+
+/* 16 px no campo: o iPhone nao da zoom automatico ao focar. */
+input[type="email"],
+input[type="password"],
+input[type="text"],
+textarea {
+  width: 100%;
+  min-height: var(--toque);
+  padding: 0.75rem 0.875rem;
+  font: inherit;
+  font-size: 1rem;
+  color: inherit;
+  background: var(--papel);
+  border: 2px solid var(--linha);
+  border-radius: var(--raio);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+.botao:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--destaque);
+  outline-offset: 2px;
+}
+
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--toque);
+  padding: 0.75rem 1.25rem;
+  font: inherit;
+  font-weight: 700;
+  color: var(--texto);
+  text-align: center;
+  text-decoration: none;
+  background: var(--papel);
+  border: 2px solid var(--linha);
+  border-radius: var(--raio);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.botao--principal {
+  color: var(--destaque-texto);
+  background: var(--destaque);
+  border-color: var(--destaque);
+}
+
+.botao--perigo {
+  color: var(--perigo);
+  border-color: var(--perigo);
+}
+
+.botao:active { transform: translateY(1px); }
+
+.acoes { display: grid; gap: 0.75rem; margin: 1rem 0; }
+
+.aviso {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  background: var(--aviso-fundo);
+  border-radius: var(--raio);
+}
+
+.aviso--erro { color: var(--perigo); background: var(--perigo-fundo); font-weight: 600; }
+
+.ajuda { color: var(--suave); font-size: 0.9375rem; }
+
+a { color: var(--destaque); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
