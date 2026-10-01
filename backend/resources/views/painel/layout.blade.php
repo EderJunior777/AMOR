@@ -7,10 +7,14 @@
     <meta name="color-scheme" content="light dark">
     <title>@yield('titulo', 'Painel') · Barbearia</title>
     <link rel="stylesheet" href="/painel/painel.css">
+    <script src="/painel/painel.js" defer></script>
 </head>
-<body>
+<body class="@auth com-navegacao @endauth">
     <main class="pagina">
         @yield('conteudo')
     </main>
+    @auth
+        @include('painel._navegacao')
+    @endauth
 </body>
 </html>

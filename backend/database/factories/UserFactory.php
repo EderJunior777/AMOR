@@ -24,6 +24,8 @@ class UserFactory extends Factory
             'password' => Str::password(24),
             'papel' => PapelUsuario::Barbeiro,
             'ativo' => true,
+            // Espelha o padrao do banco: o modelo em memoria (modo estrito) precisa do atributo.
+            'senha_temporaria' => false,
             'remember_token' => Str::random(10),
         ];
     }

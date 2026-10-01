@@ -126,6 +126,133 @@ a:focus-visible {
 
 a { color: var(--destaque); }
 
+/* ---------------------------------------------------------- navegacao */
+
+/* Barra fixa embaixo: o polegar alcanca; sem hover-only. */
+body.com-navegacao { padding-bottom: 5rem; }
+
+.navegacao {
+  position: fixed;
+  inset: auto 0 0 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.25rem;
+  padding: 0.5rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom));
+  background: var(--papel);
+  border-top: 2px solid var(--linha);
+  z-index: 10;
+}
+
+.navegacao__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--toque);
+  font-weight: 700;
+  color: var(--suave);
+  text-decoration: none;
+  border-radius: var(--raio);
+}
+
+.navegacao__item--atual { color: var(--destaque-texto); background: var(--destaque); }
+
+/* ------------------------------------------------------------ pedidos */
+
+.topo { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.topo .titulo { margin: 0; }
+
+.botao--pequeno { width: auto; min-height: 2.75rem; padding: 0.5rem 1rem; }
+.botao--enorme { min-height: 4.25rem; font-size: 1.25rem; }
+.botao--ligar { justify-content: flex-start; min-height: var(--toque); }
+.botao--whatsapp { color: #ffffff; background: #1a7f4b; border-color: #1a7f4b; }
+
+.faixa {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0.75rem 0;
+  padding: 0.875rem 1rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--destaque-texto);
+  background: var(--destaque);
+  border-radius: var(--raio);
+}
+
+.faixa[hidden], .aviso[hidden] { display: none; }
+
+.lista-de-cartoes { display: grid; gap: 1rem; margin: 1rem 0; padding: 0; list-style: none; }
+
+.cartao {
+  display: grid;
+  gap: 0.875rem;
+  padding: 1rem;
+  background: var(--papel);
+  border: 2px solid var(--linha);
+  border-radius: var(--raio);
+}
+
+.cartao__topo { display: grid; gap: 0.25rem; }
+.cartao__nome { margin: 0; font-size: 1.375rem; line-height: 1.2; overflow-wrap: anywhere; }
+.cartao__expira { margin: 0; font-weight: 700; color: var(--perigo); }
+
+.cartao__dados { display: grid; gap: 0.625rem; margin: 0; }
+.dado { display: grid; gap: 0.125rem; }
+.dado dt { font-size: 0.8125rem; font-weight: 700; color: var(--suave); text-transform: uppercase; letter-spacing: 0.03em; }
+.dado dd { margin: 0; overflow-wrap: anywhere; }
+.suave { color: var(--suave); }
+
+.cartao__acoes { display: grid; gap: 0.75rem; }
+.cartao__acoes form { margin: 0; }
+
+.recusa > summary { list-style: none; }
+.recusa > summary::-webkit-details-marker { display: none; }
+.recusa[open] > summary { margin-bottom: 0.75rem; }
+
+textarea { resize: vertical; }
+
+.resultado {
+  margin: 1rem 0;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  background: var(--aviso-fundo);
+  border-radius: var(--raio);
+}
+.resultado__titulo { margin: 0; font-size: 1.25rem; }
+.resultado p { margin: 0; }
+
+.vazio {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--suave);
+  background: var(--papel);
+  border: 2px dashed var(--linha);
+  border-radius: var(--raio);
+}
+
+/* Texto que o usuario copia (senha temporaria): um toque seleciona tudo. */
+.copiavel {
+  display: block;
+  padding: 0.875rem;
+  font: 700 1.25rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+  text-align: center;
+  overflow-wrap: anywhere;
+  user-select: all;
+  -webkit-user-select: all;
+  background: var(--papel);
+  border: 2px dashed var(--destaque);
+  border-radius: var(--raio);
+}
+
+@media (min-width: 40rem) {
+  .cartao__acoes { grid-template-columns: 1fr 1fr; align-items: start; }
+  .recusa { grid-column: 1 / -1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
