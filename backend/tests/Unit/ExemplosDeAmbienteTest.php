@@ -35,6 +35,8 @@ class ExemplosDeAmbienteTest extends TestCase
         // Definida (mesmo "false"), anula o padrao "true em producao" de
         // config/session.php. Quem roda local em http descomenta.
         $this->assertArrayNotHasKey('SESSION_SECURE_COOKIE', $vars);
+        // Idem o prefixo __Host- do cookie: ligado por padrao, so o modo celular o desliga.
+        $this->assertArrayNotHasKey('SESSION_PREFIXO_HOST', $vars);
         $this->assertSame('false', $vars['APP_DEBUG'] ?? null);
     }
 
@@ -59,6 +61,7 @@ class ExemplosDeAmbienteTest extends TestCase
         $this->assertSame('warning', $vars['LOG_LEVEL'] ?? null);
         $this->assertSame('verify-full', $vars['DB_SSLMODE'] ?? null);
         $this->assertContains($vars['SESSION_SECURE_COOKIE'] ?? 'ausente', ['ausente', 'true']);
+        $this->assertContains($vars['SESSION_PREFIXO_HOST'] ?? 'ausente', ['ausente', 'true']);
 
         // A senha (e o usuario/URL) do papel dono nao mora no servidor web:
         // migrations rodam no pipeline de deploy, com segredo proprio.

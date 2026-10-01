@@ -1,7 +1,5 @@
 <?php
 
-use Illuminate\Support\Str;
-
 return [
 
     /*
@@ -127,10 +125,15 @@ return [
     |
     */
 
-    'cookie' => env(
-        'SESSION_COOKIE',
-        Str::slug((string) env('APP_NAME', 'laravel')).'-session'
-    ),
+    // Prefixo __Host- (LIGADO por padrao): o navegador so aceita o cookie se ele
+    // for Secure, Path=/ e sem Domain, o que impede que um subdominio ou uma
+    // pagina em http o sobrescreva. Exige HTTPS. Desligar so no modo
+    // "ligar-para-celular" (teste pelo iPhone em http, APP_ENV=local):
+    // SESSION_PREFIXO_HOST=false junto com SESSION_SECURE_COOKIE=false. A trava
+    // de boot (TravaDeProducao) exige os dois em producao.
+    'cookie' => (filter_var(env('SESSION_PREFIXO_HOST', true), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? true
+        ? '__Host-'
+        : '').env('SESSION_COOKIE_NOME', 'cleison-sessao'),
 
     /*
     |--------------------------------------------------------------------------
@@ -169,9 +172,12 @@ return [
     |
     */
 
-    // Sem SESSION_SECURE_COOKIE definido, producao usa cookie Secure por
-    // padrao (nao depende de alguem lembrar de configurar).
-    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production'),
+    // LIGADO por padrao, em qualquer ambiente (nao depende de alguem lembrar de
+    // configurar). Exige HTTPS; os navegadores tratam localhost e 127.0.0.1 como
+    // seguros, entao o uso normal em localhost funciona. So o modo
+    // "ligar-para-celular" (http://IP-do-computador) o desliga, por variavel de
+    // ambiente, e a trava de boot recusa o desligado em producao.
+    'secure' => env('SESSION_SECURE_COOKIE', true),
 
     /*
     |--------------------------------------------------------------------------

@@ -15,7 +15,7 @@ class TravaDeProducaoTest extends TestCase
     {
         $config = new Repository([
             'app' => ['debug' => false, 'key' => 'base64:'.base64_encode(str_repeat('k', 32)), 'proxies_confiaveis' => ['10.0.0.0/8']],
-            'session' => ['secure' => true, 'driver' => 'database'],
+            'session' => ['secure' => true, 'driver' => 'database', 'cookie' => '__Host-cleison-sessao', 'path' => '/', 'domain' => null],
             'cache' => ['default' => 'database'],
             'cleison' => ['api' => ['atras_de_proxy' => true]],
             'database' => [
@@ -67,6 +67,11 @@ class TravaDeProducaoTest extends TestCase
             'debug ligado' => [['app.debug' => true], 'APP_DEBUG'],
             'cookie sem Secure' => [['session.secure' => false], 'SESSION_SECURE_COOKIE'],
             'cookie secure nulo' => [['session.secure' => null], 'SESSION_SECURE_COOKIE'],
+            // Cookie de sessao: __Host- (so vale com Secure, Path=/ e sem Domain).
+            'cookie sem o prefixo __Host-' => [['session.cookie' => 'cleison-sessao'], 'SESSION_PREFIXO_HOST'],
+            'cookie com prefixo errado' => [['session.cookie' => '__Secure-cleison-sessao'], 'SESSION_PREFIXO_HOST'],
+            'cookie com dominio' => [['session.domain' => '.exemplo.com.br'], 'SESSION_DOMAIN'],
+            'cookie com path diferente' => [['session.path' => '/painel'], 'SESSION_PATH'],
             // Painel: sem cache persistente os limites de login nao funcionam; sem
             // sessao no banco, desativar um usuario nao derruba as sessoes dele.
             'cache em array' => [['cache.default' => 'array'], 'CACHE_STORE'],

@@ -74,6 +74,16 @@ final class TravaDeProducao
         if ($config->get('session.secure') !== true) {
             $problemas[] = 'SESSION_SECURE_COOKIE desligado (deixe ausente ou true)';
         }
+        // Prefixo __Host-: o navegador so o aceita com Secure, Path=/ e sem Domain.
+        if (! str_starts_with((string) $config->get('session.cookie'), '__Host-')) {
+            $problemas[] = 'SESSION_PREFIXO_HOST desligado (o cookie de sessao precisa do prefixo __Host-; deixe ausente ou true)';
+        }
+        if (trim((string) $config->get('session.domain')) !== '') {
+            $problemas[] = 'SESSION_DOMAIN preenchido (o prefixo __Host- exige cookie sem Domain)';
+        }
+        if ($config->get('session.path') !== '/') {
+            $problemas[] = 'SESSION_PATH diferente de / (o prefixo __Host- exige Path=/)';
+        }
 
         // Painel: o limite de tentativas de login mora no cache (sem armazenamento
         // que persista entre requisicoes ele nao limita nada), e desativar um
