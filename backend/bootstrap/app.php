@@ -5,6 +5,7 @@ use App\Domain\Agenda\AgendaSobrecarregada;
 use App\Domain\Agenda\ReservaRecusada;
 use App\Http\Controllers\SaudeController;
 use App\Http\Middleware\CabecalhosDoPainel;
+use App\Http\Middleware\LimiteDaEntradaDoPainel;
 use App\Support\ErroDeBanco;
 use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Foundation\Application;
@@ -42,6 +43,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // Cabecalhos do painel (CSP estrita, no-store...). Respostas de erro
         // recebem os mesmos cabecalhos pelo respond() abaixo.
         $middleware->append(CabecalhosDoPainel::class);
+
+        // Limite por IP em /painel/entrar, ANTES de abrir sessao (flood anonimo
+        // nao enche a tabela de sessoes).
+        $middleware->prepend(LimiteDaEntradaDoPainel::class);
 
         // Quem nao entrou vai para a tela de login do painel; quem ja entrou
         // nao ve o login. Fora do painel (API), visitante recebe 401, nao redirecionamento.

@@ -24,12 +24,12 @@
             <input type="password" name="senha_atual" required maxlength="200" autocomplete="current-password">
         </label>
         <label class="campo">
-            <span class="campo__rotulo">Senha nova (mínimo 12 caracteres, com letras e números)</span>
-            <input type="password" name="senha_nova" required minlength="12" maxlength="128" autocomplete="new-password">
+            <span class="campo__rotulo">Senha nova (12 a 72 caracteres, com letras e números)</span>
+            <input type="password" name="senha_nova" required minlength="12" maxlength="72" autocomplete="new-password">
         </label>
         <label class="campo">
             <span class="campo__rotulo">Repita a senha nova</span>
-            <input type="password" name="senha_nova_confirmation" required minlength="12" maxlength="128" autocomplete="new-password">
+            <input type="password" name="senha_nova_confirmation" required minlength="12" maxlength="72" autocomplete="new-password">
         </label>
         <button class="botao botao--principal" type="submit">Trocar senha</button>
     </form>

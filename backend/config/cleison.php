@@ -45,16 +45,24 @@ return [
      * Painel do operador (etapa 3): limite de tentativas de login, no CACHE
      * (nunca no banco nem no log; as chaves sao HMAC, sem e-mail nem IP crus).
      *
-     *   login_max_falhas_por_email: falhas por e-mail (existente ou nao: igual,
-     *     para nao revelar quem tem conta) ate bloquear, de qualquer IP.
-     *   login_max_falhas_por_ip: falhas por IP, de qualquer e-mail.
+     * Tres contadores por tentativa (a tentativa e contada ANTES de conferir
+     * a senha; e-mail existente ou nao: igual, para nao revelar quem tem conta):
+     *   login_max_falhas_por_email_e_ip: tentativas do par e-mail + IP. Quem
+     *     erra so se tranca a si: um atacante em outro IP nao tranca o dono.
+     *   login_max_falhas_por_email_total: teto do e-mail somando todos os IPs.
+     *   login_max_falhas_por_ip: tentativas do IP, de qualquer e-mail.
      *   login_janela_minutos: duracao da janela e do bloqueio (inteiro >= 1).
+     *   entrar_por_minuto: pedidos por IP e por minuto a /painel/entrar (GET e
+     *     POST), contados ANTES de abrir sessao (flood nao enche a tabela).
      * Bloqueado, nem a senha certa entra ate a janela acabar. Login certo zera
-     * as falhas do e-mail (as do IP seguem).
+     * o par e-mail + IP (o teto do e-mail e o do IP seguem). Liberacao de
+     * emergencia: php artisan cache:clear.
      */
     'painel' => [
-        'login_max_falhas_por_email' => env('PAINEL_LOGIN_MAX_FALHAS_POR_EMAIL', 5),
+        'login_max_falhas_por_email_e_ip' => env('PAINEL_LOGIN_MAX_FALHAS_POR_EMAIL_E_IP', 5),
+        'login_max_falhas_por_email_total' => env('PAINEL_LOGIN_MAX_FALHAS_POR_EMAIL_TOTAL', 30),
         'login_max_falhas_por_ip' => env('PAINEL_LOGIN_MAX_FALHAS_POR_IP', 20),
+        'entrar_por_minuto' => env('PAINEL_ENTRAR_POR_MINUTO', 60),
         'login_janela_minutos' => env('PAINEL_LOGIN_JANELA_MINUTOS', 15),
         // Senha atual errada na tela de troca de senha: falhas por usuario na janela.
         'troca_senha_max_falhas' => env('PAINEL_TROCA_SENHA_MAX_FALHAS', 5),

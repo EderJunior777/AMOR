@@ -26,7 +26,9 @@ final class AuditoriaDeAcesso
         $email = null;
         if ($usuarioId === null && $emailTentado !== null) {
             $normalizado = mb_strtolower(trim($emailTentado));
-            if (strlen($normalizado) <= 254 && preg_match('/^[^@\s]+@[a-z0-9.-]+\.[a-z]{2,}$/', $normalizado) === 1) {
+            // So ASCII: o PCRE daqui e o CHECK do banco ($, \s, lower()) divergem em
+            // Unicode, e uma divergencia viraria erro 500 no login. /D: sem "\n" final.
+            if (strlen($normalizado) <= 254 && preg_match('/^[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$/D', $normalizado) === 1) {
                 $email = $normalizado;
             }
         }

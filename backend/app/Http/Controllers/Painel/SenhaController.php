@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Painel;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Support\AuditoriaDeAcesso;
 use App\Support\ChaveDeLimite;
 use App\Support\LimiteDeLogin;
@@ -18,11 +19,17 @@ use Illuminate\View\View;
 /**
  * Troca da PROPRIA senha (obrigatoria com senha temporaria).
  *
- * A senha atual e conferida primeiro, com limite de tentativas por usuario
- * (no cache; quem tem a sessao de outra pessoa nao descobre a senha dela por
- * aqui). Politica: 12 a 128 caracteres, com letras e numeros, diferente da
- * atual. Trocar derruba as OUTRAS sessoes do usuario, troca o remember_token
- * e a sessao atual, e audita sem senha. A senha digitada nunca volta para o
+ * A senha atual e conferida primeiro, com limite de tentativas por usuario no
+ * cache (quem tem a sessao de outra pessoa nao descobre a senha dela por aqui).
+ * A tentativa e CONTADA antes de conferir (a conferencia demora; em paralelo,
+ * so as primeiras N conferem) e zerada quando a senha atual confere, para
+ * errar a senha NOVA nao gastar tentativas.
+ *
+ * Politica da senha nova: 12 a 72 bytes (o bcrypt ignora o que passa de 72),
+ * com letras e numeros, pelo menos 6 caracteres diferentes, diferente da atual,
+ * sem ser uma senha comum nem conter o e-mail ou o nome do usuario.
+ * Trocar derruba as OUTRAS sessoes do usuario, troca o remember_token e a
+ * sessao atual, e audita sem senha. A senha digitada nunca volta para o
  * formulario nem vai para log.
  */
 final class SenhaController extends Controller
@@ -33,6 +40,15 @@ final class SenhaController extends Controller
 
     private const MAXIMO_DA_ATUAL = 200;
 
+    private const MAXIMO_DA_NOVA_EM_BYTES = 72;
+
+    /** Palavras (so letras, sem numeros nem simbolos) que, sozinhas ou com ate 2 letras a mais, sao previsiveis. */
+    private const PALAVRAS_COMUNS = [
+        'senha', 'password', 'passwd', 'qwerty', 'qwertyuiop', 'asdfghjkl', 'abcdefgh', 'abcdefghijkl',
+        'barbearia', 'barbeiro', 'cleison', 'admin', 'administrador', 'mudar', 'trocar', 'bemvindo',
+        'brasil', 'futebol', 'corinthians', 'flamengo', 'palmeiras', 'iloveyou', 'letmein', 'welcome',
+    ];
+
     public function formulario(Request $request): View
     {
         return view('painel.conta-senha', ['temporaria' => (bool) $request->user()->senha_temporaria]);
@@ -42,9 +58,10 @@ final class SenhaController extends Controller
     {
         $usuario = $request->user();
         $chave = ChaveDeLimite::de('painel-senha-usuario', (string) $usuario->getKey());
-        $janela = LimiteDeLogin::inteiro('login_janela_minutos') * 60;
+        $maximo = LimiteDeLogin::inteiro('troca_senha_max_falhas');
 
-        if (RateLimiter::tooManyAttempts($chave, LimiteDeLogin::inteiro('troca_senha_max_falhas'))) {
+        if (RateLimiter::tooManyAttempts($chave, $maximo)
+            || RateLimiter::hit($chave, LimiteDeLogin::inteiro('login_janela_minutos') * 60) > $maximo) {
             return response()
                 ->view('painel.conta-senha', ['temporaria' => (bool) $usuario->senha_temporaria, 'erro' => self::MENSAGEM_BLOQUEIO], 429)
                 ->header('Retry-After', (string) max(1, RateLimiter::availableIn($chave)));
@@ -52,13 +69,13 @@ final class SenhaController extends Controller
 
         $atual = $this->texto($request, 'senha_atual');
         if (strlen($atual) > self::MAXIMO_DA_ATUAL || ! Hash::check($atual, (string) $usuario->password)) {
-            RateLimiter::hit($chave, $janela);
-
             return redirect()->route('painel.conta.senha')->with('erro', self::MENSAGEM_ATUAL_ERRADA);
         }
+        // A senha atual conferiu: errar a senha NOVA daqui em diante nao gasta tentativas.
+        RateLimiter::clear($chave);
 
         $nova = $this->texto($request, 'senha_nova');
-        $erros = $this->errosDaSenhaNova($nova, $this->texto($request, 'senha_nova_confirmation'), $atual);
+        $erros = $this->errosDaSenhaNova($nova, $this->texto($request, 'senha_nova_confirmation'), $atual, $usuario);
         if ($erros !== []) {
             return redirect()->route('painel.conta.senha')->withErrors(['senha_nova' => $erros]);
         }
@@ -74,7 +91,6 @@ final class SenhaController extends Controller
         });
 
         $request->session()->regenerate();
-        RateLimiter::clear($chave);
 
         return redirect('/painel')->with('sucesso', 'Senha alterada.');
     }
@@ -87,16 +103,15 @@ final class SenhaController extends Controller
     }
 
     /** @return list<string> */
-    private function errosDaSenhaNova(string $nova, string $confirmacao, string $atual): array
+    private function errosDaSenhaNova(string $nova, string $confirmacao, string $atual, User $usuario): array
     {
-        $tamanho = mb_strlen($nova);
         $erros = [];
 
-        if ($tamanho < 12) {
+        if (mb_strlen($nova) < 12) {
             $erros[] = 'A senha nova precisa ter pelo menos 12 caracteres.';
         }
-        if ($tamanho > 128) {
-            $erros[] = 'A senha nova pode ter no máximo 128 caracteres.';
+        if (strlen($nova) > self::MAXIMO_DA_NOVA_EM_BYTES) {
+            $erros[] = 'A senha nova pode ter no máximo 72 caracteres (acentos contam mais de um).';
         }
         if (preg_match('/\p{L}/u', $nova) !== 1) {
             $erros[] = 'A senha nova precisa ter letras.';
@@ -110,7 +125,41 @@ final class SenhaController extends Controller
         if ($nova !== $confirmacao) {
             $erros[] = 'A confirmação não confere com a senha nova.';
         }
+        if ($erros === [] && $this->previsivel($nova, $usuario)) {
+            $erros[] = 'Escolha uma senha menos previsível (evite seu nome, seu e-mail e palavras comuns).';
+        }
 
         return $erros;
+    }
+
+    private function previsivel(string $nova, User $usuario): bool
+    {
+        $baixa = mb_strtolower($nova);
+
+        if (count(array_unique(mb_str_split($baixa))) < 6) {
+            return true;
+        }
+
+        $soLetras = (string) preg_replace('/[^\p{L}]+/u', '', $baixa);
+        foreach (self::PALAVRAS_COMUNS as $palavra) {
+            if (str_contains($soLetras, $palavra) && mb_strlen($soLetras) - mb_strlen($palavra) <= 2) {
+                return true;
+            }
+        }
+
+        $alfanumerica = (string) preg_replace('/[^a-z0-9]+/', '', $baixa);
+        $local = (string) preg_replace('/[^a-z0-9]+/', '', mb_strtolower((string) strstr((string) $usuario->email, '@', true)));
+        if (strlen($local) >= 4 && str_contains($alfanumerica, $local)) {
+            return true;
+        }
+
+        foreach (preg_split('/\s+/u', mb_strtolower((string) $usuario->name)) ?: [] as $parte) {
+            $parte = (string) preg_replace('/[^\p{L}]+/u', '', $parte);
+            if (mb_strlen($parte) >= 4 && str_contains($baixa, $parte)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

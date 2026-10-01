@@ -75,6 +75,17 @@ final class TravaDeProducao
             $problemas[] = 'SESSION_SECURE_COOKIE desligado (deixe ausente ou true)';
         }
 
+        // Painel: o limite de tentativas de login mora no cache (sem armazenamento
+        // que persista entre requisicoes ele nao limita nada), e desativar um
+        // usuario derruba as sessoes apagando linhas de `sessions` (so vale com
+        // a sessao no banco).
+        if (in_array((string) $config->get('cache.default'), ['', 'array', 'null'], true)) {
+            $problemas[] = 'CACHE_STORE nao persiste entre requisicoes (use database ou redis: os limites de login dependem dele)';
+        }
+        if ($config->get('session.driver') !== 'database') {
+            $problemas[] = 'SESSION_DRIVER diferente de database (desativar um usuario nao derrubaria as sessoes dele)';
+        }
+
         $padrao = self::conexao($config, (string) $config->get('database.default'));
         if (($padrao['driver'] ?? null) !== 'pgsql'
             || ! in_array($padrao['sslmode'] ?? null, self::SSLMODES_ACEITOS, true)) {

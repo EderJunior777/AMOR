@@ -15,7 +15,8 @@ class TravaDeProducaoTest extends TestCase
     {
         $config = new Repository([
             'app' => ['debug' => false, 'key' => 'base64:'.base64_encode(str_repeat('k', 32)), 'proxies_confiaveis' => ['10.0.0.0/8']],
-            'session' => ['secure' => true],
+            'session' => ['secure' => true, 'driver' => 'database'],
+            'cache' => ['default' => 'database'],
             'cleison' => ['api' => ['atras_de_proxy' => true]],
             'database' => [
                 'default' => 'pgsql',
@@ -66,6 +67,14 @@ class TravaDeProducaoTest extends TestCase
             'debug ligado' => [['app.debug' => true], 'APP_DEBUG'],
             'cookie sem Secure' => [['session.secure' => false], 'SESSION_SECURE_COOKIE'],
             'cookie secure nulo' => [['session.secure' => null], 'SESSION_SECURE_COOKIE'],
+            // Painel: sem cache persistente os limites de login nao funcionam; sem
+            // sessao no banco, desativar um usuario nao derruba as sessoes dele.
+            'cache em array' => [['cache.default' => 'array'], 'CACHE_STORE'],
+            'cache nulo' => [['cache.default' => 'null'], 'CACHE_STORE'],
+            'cache ausente' => [['cache.default' => null], 'CACHE_STORE'],
+            'sessao em arquivo' => [['session.driver' => 'file'], 'SESSION_DRIVER'],
+            'sessao em cookie' => [['session.driver' => 'cookie'], 'SESSION_DRIVER'],
+            'sessao em array' => [['session.driver' => 'array'], 'SESSION_DRIVER'],
             'sslmode prefer' => [['database.connections.pgsql.sslmode' => 'prefer'], 'DB_SSLMODE'],
             'sslmode disable' => [['database.connections.pgsql.sslmode' => 'disable'], 'DB_SSLMODE'],
             'sslmode ausente' => [['database.connections.pgsql.sslmode' => null], 'DB_SSLMODE'],

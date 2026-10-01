@@ -48,9 +48,14 @@ final class LoginController extends Controller
 
         $usuario = $email === '' ? null : User::query()->whereRaw('lower(email) = ?', [$email])->first();
 
-        $espera = LimiteDeLogin::espera($email, $ip);
+        // A tentativa e CONTADA antes de conferir a senha (bcrypt demora; em
+        // paralelo, so as primeiras N passariam a conferir).
+        $espera = LimiteDeLogin::espera($email, $ip) ?? LimiteDeLogin::contar($email, $ip);
         if ($espera !== null) {
-            AuditoriaDeAcesso::acesso('login', 'bloqueado', $usuario?->getKey(), $email);
+            // Uma vez por janela: a trilha e imutavel e nao cresce com um flood.
+            if (LimiteDeLogin::primeiroBloqueio($email, $ip, $espera)) {
+                AuditoriaDeAcesso::acesso('login', 'bloqueado', $usuario?->getKey(), $email);
+            }
 
             return response()
                 ->view('painel.entrar', ['erro' => self::MENSAGEM_BLOQUEIO], 429)
@@ -61,7 +66,6 @@ final class LoginController extends Controller
         $confere = Hash::check(substr($senha, 0, self::MAXIMO_DA_SENHA), (string) ($usuario?->password ?? HashIsca::obter()));
 
         if ($usuario === null || ! $usuario->ativo || ! $confere || strlen($senha) > self::MAXIMO_DA_SENHA) {
-            LimiteDeLogin::registrarFalha($email, $ip);
             AuditoriaDeAcesso::acesso('login', 'falha', $usuario?->getKey(), $email);
 
             return redirect()->route('painel.entrar')
@@ -69,10 +73,15 @@ final class LoginController extends Controller
                 ->withInput(['email' => $email]);
         }
 
-        LimiteDeLogin::zerarEmail($email);
+        LimiteDeLogin::zerar($email, $ip);
         Auth::login($usuario);
         $request->session()->regenerate();
-        $usuario->forceFill(['ultimo_acesso_em' => now()])->save();
+        // Hash com custo antigo (rounds mudou depois): refeito agora, com a senha que acabou de conferir.
+        $atualizacoes = ['ultimo_acesso_em' => now()];
+        if (Hash::needsRehash((string) $usuario->password)) {
+            $atualizacoes['password'] = $senha;
+        }
+        $usuario->forceFill($atualizacoes)->save();
         AuditoriaDeAcesso::acesso('login', 'sucesso', (int) $usuario->getKey());
 
         return $usuario->senha_temporaria

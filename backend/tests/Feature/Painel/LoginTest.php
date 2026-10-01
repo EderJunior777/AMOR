@@ -257,13 +257,32 @@ class LoginTest extends TestCase
         $this->assertSame($usuario->id, (int) $ultima[0]->usuario_id);
     }
 
-    public function test_o_bloqueio_do_email_vale_de_qualquer_ip_e_e_igual_para_email_inexistente(): void
+    public function test_quem_ataca_um_email_de_outro_ip_nao_tranca_o_dono(): void
     {
-        $usuario = $this->usuario();
+        $dono = $this->usuario();
 
         for ($i = 0; $i < 5; $i++) {
-            $this->entrar($usuario->email, "errada-{$i}-123456", '198.51.100.1');
-            $this->entrar('fantasma@exemplo.com', "errada-{$i}-123456", '198.51.100.2');
+            $this->entrar($dono->email, "errada-{$i}-123456", '198.51.100.1'); // o atacante
+        }
+
+        $this->entrar($dono->email, self::SENHA, '198.51.100.1')->assertStatus(429);
+        $this->assertGuest();
+
+        // O limite e por e-mail + IP: o dono, do IP dele, entra normalmente.
+        $this->entrar($dono->email, self::SENHA, '198.51.100.50')->assertRedirect('/painel');
+        $this->assertAuthenticatedAs($dono);
+    }
+
+    public function test_o_teto_por_email_somando_os_ips_bloqueia_todos_e_e_igual_para_email_inexistente(): void
+    {
+        config(['cleison.painel.login_max_falhas_por_email_total' => 10]);
+        $usuario = $this->usuario();
+
+        foreach (['198.51.100.1', '198.51.100.2'] as $ip) {
+            for ($i = 0; $i < 5; $i++) {
+                $this->entrar($usuario->email, "errada-{$i}-123456", $ip);
+                $this->entrar('fantasma@exemplo.com', "errada-{$i}-123456", $ip);
+            }
         }
 
         $comUsuario = $this->entrar($usuario->email, self::SENHA, '198.51.100.99');
@@ -273,6 +292,65 @@ class LoginTest extends TestCase
         $this->assertSame($comUsuario->getStatusCode(), $semUsuario->getStatusCode(), 'sem pista de que o e-mail existe');
         $comUsuario->assertSee('Muitas tentativas');
         $semUsuario->assertSee('Muitas tentativas');
+    }
+
+    public function test_o_bloqueio_e_auditado_uma_vez_por_janela_e_nao_a_cada_tentativa(): void
+    {
+        $usuario = $this->usuario();
+        for ($i = 0; $i < 5; $i++) {
+            $this->entrar($usuario->email, "errada-{$i}-123456");
+        }
+
+        for ($i = 0; $i < 8; $i++) {
+            $this->entrar($usuario->email)->assertStatus(429);
+        }
+
+        $bloqueios = array_filter($this->auditoria(), fn ($l) => $l->resultado === 'bloqueado');
+        $this->assertCount(1, $bloqueios, 'um flood de tentativas bloqueadas nao enche a trilha imutavel');
+    }
+
+    public function test_a_tela_de_login_tem_limite_por_ip_antes_de_abrir_sessao(): void
+    {
+        config(['cleison.painel.entrar_por_minuto' => 3, 'session.driver' => 'database']);
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.77'])->get('/painel/entrar')->assertOk();
+        }
+        $barrada = $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.77'])->get('/painel/entrar');
+
+        $barrada->assertStatus(429);
+        $barrada->assertSee('Muitas tentativas');
+        $this->assertNotNull($barrada->headers->get('Content-Security-Policy'), 'a pagina 429 tambem leva os cabecalhos do painel');
+        $this->assertSame([], $barrada->headers->getCookies(), 'a requisicao barrada nao abre nem renova sessao (sem cookie)');
+        $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.78'])->get('/painel/entrar')->assertOk();
+    }
+
+    public function test_e_mail_com_unicode_ou_fora_do_ascii_nao_derruba_o_login_nem_vai_para_a_trilha(): void
+    {
+        foreach (["fulano\u{2003}@exemplo.com", 'ÉLIO@exemplo.com', 'fulano@exémplo.com', "fulano@exemplo.com\n"] as $email) {
+            $this->entrar($email)->assertRedirect('/painel/entrar')->assertSessionHas('erro', self::MENSAGEM_FALHA);
+        }
+
+        $linhas = $this->auditoria();
+        $this->assertCount(4, $linhas);
+        foreach ($linhas as $linha) {
+            $this->assertSame('falha', $linha->resultado);
+        }
+        $this->assertSame(['fulano@exemplo.com'], array_values(array_filter(array_column($linhas, 'email_tentado'))), 'so o e-mail ASCII valido (o \n final e aparado)');
+    }
+
+    public function test_o_hash_antigo_e_refeito_no_login_com_o_custo_atual(): void
+    {
+        $usuario = $this->usuario();
+        $antigo = $usuario->fresh()->password;
+        Hash::driver('bcrypt')->setRounds(5); // o custo subiu depois que a senha foi criada
+
+        $this->entrar($usuario->email)->assertRedirect('/painel');
+
+        $novo = $usuario->fresh()->password;
+        $this->assertNotSame($antigo, $novo);
+        $this->assertTrue(Hash::check(self::SENHA, $novo), 'a mesma senha continua valendo');
+        $this->assertStringContainsString('$05$', $novo, 'bcrypt com o custo novo');
     }
 
     public function test_vinte_falhas_do_mesmo_ip_bloqueiam_o_ip_e_nao_os_outros(): void

@@ -40,7 +40,12 @@ class TrocaDeSenhaTest extends TestCase
     /** @param array<string, mixed> $estado */
     private function logado(array $estado = []): User
     {
-        $usuario = User::factory()->state($estado + ['password' => self::ATUAL, 'senha_temporaria' => false])->create();
+        $usuario = User::factory()->state($estado + [
+            'password' => self::ATUAL,
+            'senha_temporaria' => false,
+            'name' => 'Fulano Silva Santos',
+            'email' => 'fulano.silva@exemplo.com',
+        ])->create();
         $this->actingAs($usuario);
 
         return $usuario;
@@ -164,9 +169,48 @@ class TrocaDeSenhaTest extends TestCase
             'so letras' => ['abcdefghijklmnop', null, 'precisa ter números'],
             'igual a atual' => [self::ATUAL, null, 'diferente da atual'],
             'confirmacao diferente' => [self::NOVA, 'OutraSenhaForte2026', 'confirmação não confere'],
-            'enorme (129)' => [str_repeat('a1', 64).'b', null, 'no máximo 128'],
+            'acima de 72 bytes (o bcrypt ignoraria o resto)' => [str_repeat('a1', 36).'b', null, 'no máximo 72'],
             'vazia' => ['', null, 'pelo menos 12 caracteres'],
+            'senha comum' => ['senha1234567', null, 'menos previsível'],
+            'senha comum em ingles' => ['Password2026X', null, 'menos previsível'],
+            'teclado' => ['qwertyuiop12', null, 'menos previsível'],
+            'poucos caracteres diferentes' => ['aaaaaaaaaaa1', null, 'menos previsível'],
+            'contem o e-mail' => ['Fulano.Silva2026!', null, 'menos previsível'],
+            'contem o nome' => ['MinhaSantos2026x', null, 'menos previsível'],
+            'nome do estabelecimento' => ['Barbearia123456', null, 'menos previsível'],
         ];
+    }
+
+    public function test_72_bytes_e_o_maximo_aceito(): void
+    {
+        $usuario = $this->logado();
+        $nova = 'Zz9'.str_repeat('xK7q', 17).'m'; // 72 caracteres
+
+        $this->assertSame(72, strlen($nova));
+        $this->trocar(self::ATUAL, $nova)->assertRedirect('/painel');
+        $this->assertTrue(Hash::check($nova, $usuario->fresh()->password));
+    }
+
+    public function test_acentos_contam_em_bytes_para_o_limite_do_bcrypt(): void
+    {
+        $this->logado();
+        $nova = str_repeat('ção1', 19); // 76 bytes, 76/… caracteres: passa de 72 bytes
+
+        $resposta = $this->trocar(self::ATUAL, $nova);
+
+        $this->assertGreaterThan(72, strlen($nova));
+        $resposta->assertRedirect('/painel/conta/senha')->assertSessionHasErrors('senha_nova');
+    }
+
+    public function test_errar_a_nova_senha_nao_gasta_as_tentativas_da_senha_atual(): void
+    {
+        $this->logado();
+
+        for ($i = 0; $i < 8; $i++) {
+            $this->trocar(self::ATUAL, 'curta1')->assertRedirect('/painel/conta/senha');
+        }
+
+        $this->trocar()->assertRedirect('/painel')->assertSessionHas('sucesso');
     }
 
     #[DataProvider('senhasNovasRecusadas')]
