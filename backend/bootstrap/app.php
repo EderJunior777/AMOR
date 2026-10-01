@@ -4,6 +4,7 @@ use App\Console\Kernel;
 use App\Domain\Agenda\AgendaSobrecarregada;
 use App\Domain\Agenda\ReservaRecusada;
 use App\Http\Controllers\SaudeController;
+use App\Http\Middleware\CabecalhosDoPainel;
 use App\Support\ErroDeBanco;
 use Illuminate\Contracts\Console\Kernel as ConsoleKernel;
 use Illuminate\Foundation\Application;
@@ -15,6 +16,7 @@ use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -36,11 +38,24 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // (paths api/*, allowed_origins *), que abriria a API a qualquer
         // origem. Removido de proposito; nao publicar config/cors.php.
         $middleware->remove(HandleCors::class);
+
+        // Cabecalhos do painel (CSP estrita, no-store...). Respostas de erro
+        // recebem os mesmos cabecalhos pelo respond() abaixo.
+        $middleware->append(CabecalhosDoPainel::class);
+
+        // Quem nao entrou vai para a tela de login do painel; quem ja entrou
+        // nao ve o login. Fora do painel (API), visitante recebe 401, nao redirecionamento.
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->is('painel', 'painel/*') ? '/painel/entrar' : null);
+        $middleware->redirectUsersTo('/painel');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $pedeJson = fn (Request $request) => $request->is('api/*') || $request->expectsJson();
 
         $exceptions->shouldRenderJsonWhen($pedeJson);
+
+        // 404, 405, 419, 500...: o Laravel monta a resposta de erro fora do
+        // pipeline de middleware global; os cabecalhos do painel entram aqui.
+        $exceptions->respond(fn (Response $resposta, Throwable $e, Request $request) => CabecalhosDoPainel::aplicar($request, $resposta));
 
         // API publica v1: erros sempre em JSON estavel, sem SQL, stack nem o
         // valor enviado. So para api/*; o resto segue o padrao do Laravel.
