@@ -43,12 +43,6 @@
         <button class="botao botao--enorme botao--perigo" type="submit">Sair</button>
     </form>
 
-    <h2 class="subtitulo">Sair</h2>
-    <form method="post" action="/painel/sair" class="formulario">
-        @csrf
-        <button class="botao botao--enorme botao--perigo" type="submit">Sair</button>
-    </form>
-
     @unless ($temporaria)
         <p class="ajuda"><a href="/painel">Voltar</a></p>
     @endunless

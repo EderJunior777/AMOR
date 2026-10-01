@@ -499,6 +499,13 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
    `ALTER ROLE cleison PASSWORD '<nova>'`. Depois, atualize o segredo de
    migração. No cluster local descartável, basta recriar com
    `postgres-local.ps1 criar`.
+
+   > **Feito em 2026-09-30, só no ambiente local de desenvolvimento** (itens 1
+   > a 3): `APP_KEY`, a senha de `cleison_app` e a senha de `cleison` foram
+   > rotacionadas no PostgreSQL local (127.0.0.1) e em `backend/.env`,
+   > `backend/.env.testing` e `.ferramentas/pg-credenciais.txt`, todos fora do
+   > git. Nenhum valor foi registrado. **Em produção**, gere os segredos no
+   > gerenciador de segredos do pipeline, nunca em `.env` versionado.
 4. **Configurar os dois segredos no pipeline de deploy:**
    - `DB_MIGRACAO_USERNAME` e `DB_MIGRACAO_PASSWORD` (papel `cleison`, dono)
      no cofre de secrets do CI/CD, passados **apenas** ao passo de

@@ -502,7 +502,7 @@ class PedidosTest extends TestCase
         $html = $resposta->getContent();
         $this->assertStringContainsString('name="viewport" content="width=device-width, initial-scale=1"', $html);
         $this->assertStringContainsString('lang="pt-BR"', $html);
-        $this->assertStringContainsString('src="/painel/painel.js"', $html);
+        $this->assertStringContainsString('src="/recursos-do-painel/painel.js"', $html);
         $this->assertDoesNotMatchRegularExpression('/<script(?![^>]*\ssrc=)/i', $html);
         $this->assertDoesNotMatchRegularExpression('/<style/i', $html);
         $this->assertDoesNotMatchRegularExpression('/\sstyle\s*=/i', $html);

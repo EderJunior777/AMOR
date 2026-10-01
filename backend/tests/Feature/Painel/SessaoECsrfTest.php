@@ -144,7 +144,7 @@ class SessaoECsrfTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/<script(?![^>]*\ssrc=)/i', $html, 'nada de script inline');
         $this->assertDoesNotMatchRegularExpression('/<style/i', $html, 'nada de <style>');
         $this->assertDoesNotMatchRegularExpression('/\sstyle\s*=/i', $html, 'nada de style=""');
-        $this->assertStringContainsString('href="/painel/painel.css"', $html);
+        $this->assertStringContainsString('href="/recursos-do-painel/painel.css"', $html);
     }
 
     private function diretiva(TestResponse $resposta, string $nome): ?string
