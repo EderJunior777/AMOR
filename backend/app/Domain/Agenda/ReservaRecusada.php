@@ -28,6 +28,8 @@ final class ReservaRecusada extends DomainException
         'fora_do_prazo' => 'O prazo para alterar esta reserva pelo site ja passou. Fale com a barbearia.',
         'motivo_obrigatorio' => 'Informe o motivo do encaixe.',
         'motivo_muito_longo' => 'O motivo pode ter no maximo trezentos caracteres.',
+        'motivo_da_recusa_obrigatorio' => 'Informe o motivo da recusa.',
+        'motivo_do_cancelamento_obrigatorio' => 'Informe o motivo do cancelamento.',
         'estado_nao_permite' => 'Esta reserva nao pode ser alterada no estado atual.',
         'agenda_indisponivel' => 'A agenda esta indisponivel no momento. Tente novamente mais tarde.',
         'limite_de_reservas_em_aberto' => 'Voce ja tem o maximo de reservas em aberto. Cancele uma delas ou fale com a barbearia.',

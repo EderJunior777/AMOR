@@ -211,16 +211,82 @@ final class ReservarHorario
      *
      * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite
      */
-    public function cancelarPeloOperador(string $codigo, User $operador, ?string $motivo = null): Agendamento
+    public function cancelarPeloOperador(string $codigo, User $operador, ?string $motivo = null, ?int $profissionalId = null): Agendamento
     {
-        return $this->alterar(Ator::Operador, $operador, function () use ($codigo, $motivo) {
-            $agendamento = $this->localizar($codigo, null, travar: true);
+        return $this->alterar(Ator::Operador, $operador, function () use ($codigo, $motivo, $profissionalId) {
+            $agendamento = $this->localizar($codigo, null, travar: true, profissionalId: $profissionalId);
             if (! $agendamento->estado->podeIrPara(EstadoAgendamento::Cancelado)) {
                 throw ReservaRecusada::por('estado_nao_permite');
             }
 
             return $this->cancelar($agendamento, self::texto($motivo));
         });
+    }
+
+    /**
+     * Cancelamento do operador pelo PAINEL: igual a cancelarPeloOperador, mas o
+     * motivo e OBRIGATORIO (ate 300; acima disso e recusado, nunca cortado).
+     * $profissionalId: so age em reserva desse profissional (o barbeiro).
+     *
+     * @throws ReservaRecusada motivo_do_cancelamento_obrigatorio, motivo_muito_longo,
+     *                         reserva_nao_encontrada, estado_nao_permite
+     */
+    public function cancelarComMotivo(string $codigo, User $operador, ?string $motivo, ?int $profissionalId = null): Agendamento
+    {
+        $texto = self::motivoObrigatorio($motivo, 'motivo_do_cancelamento_obrigatorio');
+
+        return $this->cancelarPeloOperador($codigo, $operador, $texto, $profissionalId);
+    }
+
+    /**
+     * Recusa de um PEDIDO: solicitado -> cancelado pelo operador, com motivo
+     * curto obrigatorio (ate 300; acima disso e recusado, nunca cortado). O
+     * motivo vai para o historico (dados.motivo do evento). Reserva ja
+     * confirmada nao se "recusa": cancela-se (cancelarComMotivo).
+     *
+     * @throws ReservaRecusada motivo_da_recusa_obrigatorio, motivo_muito_longo,
+     *                         reserva_nao_encontrada, estado_nao_permite
+     */
+    public function recusar(string $codigo, User $operador, ?string $motivo, ?int $profissionalId = null): Agendamento
+    {
+        $texto = self::motivoObrigatorio($motivo, 'motivo_da_recusa_obrigatorio');
+
+        return $this->alterar(Ator::Operador, $operador, function () use ($codigo, $texto, $profissionalId) {
+            $agendamento = $this->localizar($codigo, null, travar: true, profissionalId: $profissionalId);
+            $this->exigirEstado($agendamento, EstadoAgendamento::Solicitado);
+
+            return $this->cancelar($agendamento, $texto);
+        });
+    }
+
+    /**
+     * Confirmado -> em atendimento (o cliente chegou e o atendimento comecou).
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite
+     */
+    public function iniciar(string $codigo, User $operador, ?int $profissionalId = null): Agendamento
+    {
+        return $this->transitar($codigo, $operador, EstadoAgendamento::EmAtendimento, $profissionalId);
+    }
+
+    /**
+     * Confirmado ou em atendimento -> concluido (contrato de estados).
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite
+     */
+    public function concluir(string $codigo, User $operador, ?int $profissionalId = null): Agendamento
+    {
+        return $this->transitar($codigo, $operador, EstadoAgendamento::Concluido, $profissionalId);
+    }
+
+    /**
+     * Confirmado -> nao compareceu.
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite
+     */
+    public function marcarFalta(string $codigo, User $operador, ?int $profissionalId = null): Agendamento
+    {
+        return $this->transitar($codigo, $operador, EstadoAgendamento::NaoCompareceu, $profissionalId);
     }
 
     /**
@@ -272,14 +338,26 @@ final class ReservarHorario
      *
      * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite
      */
-    public function confirmar(string $codigo, User $operador): Agendamento
+    public function confirmar(string $codigo, User $operador, ?int $profissionalId = null): Agendamento
     {
-        return $this->alterar(Ator::Operador, $operador, function () use ($codigo) {
-            $agendamento = $this->localizar($codigo, null, travar: true);
-            if (! $agendamento->estado->podeIrPara(EstadoAgendamento::Confirmado)) {
+        return $this->transitar($codigo, $operador, EstadoAgendamento::Confirmado, $profissionalId);
+    }
+
+    /**
+     * Transicao simples de estado pelo operador: a reserva e travada (FOR
+     * UPDATE, no profissional dele quando houver filtro) e o contrato de
+     * estados e conferido DENTRO da transacao; o banco confere de novo.
+     *
+     * @throws ReservaRecusada reserva_nao_encontrada, estado_nao_permite
+     */
+    private function transitar(string $codigo, User $operador, EstadoAgendamento $destino, ?int $profissionalId): Agendamento
+    {
+        return $this->alterar(Ator::Operador, $operador, function () use ($codigo, $destino, $profissionalId) {
+            $agendamento = $this->localizar($codigo, null, travar: true, profissionalId: $profissionalId);
+            if (! $agendamento->estado->podeIrPara($destino)) {
                 throw ReservaRecusada::por('estado_nao_permite');
             }
-            $agendamento->forceFill(['estado' => EstadoAgendamento::Confirmado])->save();
+            $agendamento->forceFill(['estado' => $destino])->save();
 
             return (int) $agendamento->getKey();
         });
@@ -360,7 +438,7 @@ final class ReservarHorario
      * nulo) nunca confere. O formato uuid e conferido antes: o PostgreSQL
      * responderia 22P02 (500) a um texto qualquer.
      */
-    private function localizar(string $codigo, ?string $telefone, bool $travar): Agendamento
+    private function localizar(string $codigo, ?string $telefone, bool $travar, ?int $profissionalId = null): Agendamento
     {
         $naoEncontrada = ReservaRecusada::por('reserva_nao_encontrada');
         if (! Str::isUuid($codigo)) {
@@ -368,6 +446,12 @@ final class ReservarHorario
         }
 
         $consulta = Agendamento::query()->where('codigo_publico', $codigo);
+        // Barbeiro: so a reserva do PROPRIO profissional, na mesma consulta
+        // que trava a linha (a autorizacao nao tem janela entre checar e agir).
+        // Reserva de outro profissional e "nao encontrada", igual a inexistente.
+        if ($profissionalId !== null) {
+            $consulta->where('profissional_id', $profissionalId);
+        }
         if ($telefone !== null) {
             $normalizado = Telefone::normalizar($telefone) ?? throw $naoEncontrada;
             $consulta->whereHas('cliente', fn ($cliente) => $cliente->where('telefone', $normalizado));
@@ -486,6 +570,18 @@ final class ReservarHorario
         }
 
         return $limpo === '' ? null : $limpo;
+    }
+
+    /**
+     * Motivo OBRIGATORIO do operador: normalizado como em texto(); vazio e
+     * recusado com o codigo dado (cada tela diz o que faltou), acima de 300 e
+     * recusado, nunca cortado.
+     *
+     * @throws ReservaRecusada $codigoSeVazio ou motivo_muito_longo
+     */
+    private static function motivoObrigatorio(?string $valor, string $codigoSeVazio): string
+    {
+        return self::texto($valor) ?? throw ReservaRecusada::por($codigoSeVazio);
     }
 
     private function carregar(Agendamento $agendamento): Agendamento

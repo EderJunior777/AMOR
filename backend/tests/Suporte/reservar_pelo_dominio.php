@@ -73,7 +73,13 @@ try {
         'executar' => null,
         'remarcar_cliente' => $servico->remarcarPeloCliente($pedido['codigo'], $pedido['telefone'], $pedido['data'], $pedido['hora']),
         'cancelar_cliente' => $servico->cancelarPeloCliente($pedido['codigo'], $pedido['telefone']),
-        'confirmar' => $servico->confirmar($pedido['codigo'], $operador),
+        'confirmar' => $servico->confirmar($pedido['codigo'], $operador, $pedido['profissional_id'] ?? null),
+        // Acoes do operador no painel (AcoesDoOperadorConcorrenciaTest).
+        'recusar' => $servico->recusar($pedido['codigo'], $operador, $pedido['motivo'] ?? null, $pedido['profissional_id'] ?? null),
+        'iniciar' => $servico->iniciar($pedido['codigo'], $operador, $pedido['profissional_id'] ?? null),
+        'concluir' => $servico->concluir($pedido['codigo'], $operador, $pedido['profissional_id'] ?? null),
+        'faltou' => $servico->marcarFalta($pedido['codigo'], $operador, $pedido['profissional_id'] ?? null),
+        'cancelar_com_motivo' => $servico->cancelarComMotivo($pedido['codigo'], $operador, $pedido['motivo'] ?? null, $pedido['profissional_id'] ?? null),
     };
     if ($existente !== null) {
         $saida = ['ok' => true, 'id' => $existente->id, 'estado' => $existente->estado->value];
