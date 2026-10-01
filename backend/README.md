@@ -521,6 +521,14 @@ Coisas que o código não resolve e que dependem do responsável pelo projeto:
      proprietário ativo, em nome de quem a rotina `cleison:anonimizar-inativos`
      roda diariamente às 03:30 de São Paulo).
    - Até definir: o comando não anonimiza ninguém (status: inerte).
+   - **Retenção do registro de acessos (`auditoria_acessos`)**: decidir junto
+     com o D5 (responsável + jurídico). Sem valor padrão: enquanto não houver
+     decisão, nada é apagado. O registro guarda só `usuario_id` (ou o e-mail
+     normalizado, em falha), o resultado e a data e hora, sem IP.
+   - **Sem MFA, o painel só pode ser usado em `localhost` ou em Wi-Fi de
+     confiança, com dados de demonstração.** Não exponha o painel à internet
+     nem use dados reais de clientes até haver segundo fator (decisão
+     pendente do responsável).
 6. **Aprovar mover `laravel/tinker` para `require-dev`** (proposta):
    - Tinker é uma shell REPL para debugging e não precisa em produção.
    - Altera `composer.lock` (aprove antes de executar).
