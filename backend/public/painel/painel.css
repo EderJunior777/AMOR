@@ -233,6 +233,28 @@ textarea { resize: vertical; }
   border-radius: var(--raio);
 }
 
+/* ------------------------------------------------------------- agenda */
+
+.dia { margin: 1.5rem 0; }
+.dia__titulo { margin: 0 0 0.5rem; font-size: 1.125rem; text-transform: capitalize; }
+.dia--atrasadas .dia__titulo { color: var(--perigo); }
+
+.cartao__hora { margin: 0; font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+.cartao h3.cartao__nome { font-size: 1.25rem; }
+
+.etiqueta {
+  justify-self: start;
+  margin: 0;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--texto);
+  background: var(--aviso-fundo);
+  border-radius: 999px;
+}
+.etiqueta--em_atendimento { color: var(--destaque-texto); background: var(--destaque); }
+.cartao--em_atendimento { border-color: var(--destaque); }
+
 /* Texto que o usuario copia (senha temporaria): um toque seleciona tudo. */
 .copiavel {
   display: block;

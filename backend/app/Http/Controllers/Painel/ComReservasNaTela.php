@@ -42,7 +42,8 @@ trait ComReservasNaTela
     private function resultadoDaAcao(Request $request, User $usuario, ConsultasDoPainel $consultas): ?array
     {
         $acao = $request->session()->get('acao');
-        if (! is_array($acao) || ! is_string($acao['codigo'] ?? null) || ! in_array($acao['tipo'] ?? null, [MensagemParaCliente::CONFIRMADO, MensagemParaCliente::RECUSADO], true)) {
+        $tipos = [MensagemParaCliente::CONFIRMADO, MensagemParaCliente::RECUSADO, MensagemParaCliente::CANCELADO];
+        if (! is_array($acao) || ! is_string($acao['codigo'] ?? null) || ! in_array($acao['tipo'] ?? null, $tipos, true)) {
             return null;
         }
 

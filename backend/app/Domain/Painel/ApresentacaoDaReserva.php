@@ -36,6 +36,7 @@ final class ApresentacaoDaReserva
             'servicos' => $this->servicos(),
             'duracao' => self::minutosEmTexto($this->duracaoEmMinutos()),
             'dia' => $this->dia(),
+            'dataIso' => $this->inicio()->format('Y-m-d'),
             'hora' => $this->hora(),
             'local' => $this->reserva->modalidade === Modalidade::Domicilio ? 'Na casa do cliente' : 'Na barbearia',
             'domicilio' => $this->reserva->modalidade === Modalidade::Domicilio,

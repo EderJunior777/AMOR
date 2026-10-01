@@ -5,6 +5,7 @@ namespace App\Domain\Painel;
 use App\Enums\EstadoAgendamento;
 use App\Models\Agendamento;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -37,6 +38,27 @@ final class ConsultasDoPainel
             'total' => $consulta()->count(),
             'ids' => $consulta()->orderBy('id')->limit(self::LIMITE)->pluck('id')->map(fn ($id) => (int) $id)->all(),
         ];
+    }
+
+    /**
+     * Agenda: reservas confirmadas e em atendimento, do mais cedo ao mais tarde,
+     * de hoje ate o fim do $dias-esimo dia (dia = o do fuso do estabelecimento).
+     * Inclui as dos dias ANTERIORES ainda abertas (esqueceram de concluir ou
+     * marcar a falta): sem limite inferior, para ninguem ficar sem acao.
+     *
+     * @return Collection<int, Agendamento>
+     */
+    public function agenda(User $usuario, string $fuso, int $dias): Collection
+    {
+        $fim = CarbonImmutable::now($fuso)->startOfDay()->addDays($dias);
+
+        return $this->base($usuario)
+            ->whereIn('estado', [EstadoAgendamento::Confirmado, EstadoAgendamento::EmAtendimento])
+            ->where('inicio_servico', '<', $fim)
+            ->orderBy('inicio_servico')
+            ->orderBy('id')
+            ->limit(self::LIMITE * 2)
+            ->get();
     }
 
     /** Uma reserva pelo codigo publico, DENTRO do escopo do usuario; nula se nao existir ou for de outro profissional. */

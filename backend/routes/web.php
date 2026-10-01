@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Painel\AcoesDaAgendaController;
 use App\Http\Controllers\Painel\AcoesDoPedidoController;
+use App\Http\Controllers\Painel\AgendaController;
 use App\Http\Controllers\Painel\LoginController;
 use App\Http\Controllers\Painel\PedidosController;
 use App\Http\Controllers\Painel\SenhaController;
@@ -28,6 +30,13 @@ Route::prefix('painel')->name('painel.')->group(function () {
         Route::get('pedidos/resumo', [PedidosController::class, 'resumo'])->name('pedidos.resumo');
         Route::post('pedidos/confirmar', [AcoesDoPedidoController::class, 'confirmar'])->name('pedidos.confirmar');
         Route::post('pedidos/recusar', [AcoesDoPedidoController::class, 'recusar'])->name('pedidos.recusar');
+
+        // Agenda: confirmadas e em atendimento.
+        Route::get('agenda', [AgendaController::class, 'index'])->name('agenda');
+        Route::post('agenda/iniciar', [AcoesDaAgendaController::class, 'iniciar'])->name('agenda.iniciar');
+        Route::post('agenda/concluir', [AcoesDaAgendaController::class, 'concluir'])->name('agenda.concluir');
+        Route::post('agenda/faltou', [AcoesDaAgendaController::class, 'faltou'])->name('agenda.faltou');
+        Route::post('agenda/cancelar', [AcoesDaAgendaController::class, 'cancelar'])->name('agenda.cancelar');
 
         Route::post('sair', [LoginController::class, 'sair'])->name('sair');
         Route::get('conta/senha', [SenhaController::class, 'formulario'])->name('conta.senha');
