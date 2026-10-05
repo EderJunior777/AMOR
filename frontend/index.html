@@ -250,12 +250,12 @@
               </button>
             </div>
 
-            <p class="erro" id="erro-codigo" hidden></p>
+            <p class="erro" id="erro-codigo" role="alert" hidden></p>
           </div>
 
           <div class="comanda" id="resumo"></div>
 
-          <p class="erro" id="erro-form" hidden></p>
+          <p class="erro" id="erro-form" role="alert" hidden></p>
 
           <button class="botao botao-ouro botao-largo espaco-botao-confirmar" type="submit" id="botao-confirmar">
             <span>Confirmar e ir para o WhatsApp</span>
@@ -296,7 +296,7 @@
       <button type="button" class="botao botao-pequeno" id="btn-minha-cancelar"><span>Cancelar reserva</span></button>
     </div>
 
-    <p class="erro" id="minha-erro" hidden></p>
+    <p class="erro" id="minha-erro" role="alert" hidden></p>
     <p class="campo-nota" id="minha-aviso"></p>
     <div class="recibo-dados" id="minha-detalhe"></div>
 
@@ -378,7 +378,7 @@
 </div>
 
 <!-- =========================================================== sucesso -->
-<div class="sucesso" id="tela-sucesso" hidden>
+<div class="sucesso" id="tela-sucesso" role="dialog" aria-modal="true" aria-labelledby="sucesso-titulo" hidden>
   <div class="recibo">
     <div class="recibo-poste poste poste-fino" aria-hidden="true"></div>
 
@@ -388,7 +388,7 @@
       </svg>
     </div>
 
-    <h2>Horário reservado</h2>
+    <h2 id="sucesso-titulo" tabindex="-1">Horário reservado</h2>
     <p class="recibo-sub">Guardamos no seu nome. Agora é só confirmar com o barbeiro.</p>
 
     <div class="recibo-dados" id="sucesso-detalhe"></div>

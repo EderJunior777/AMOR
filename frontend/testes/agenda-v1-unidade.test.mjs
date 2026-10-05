@@ -21,8 +21,8 @@ const ok = (cond, nome, extra) => {
 };
 const secao = (titulo) => console.log("\n--- " + titulo + " ---");
 
-function resposta(status, corpo) {
-  return { ok: status >= 200 && status < 300, status, json: () => Promise.resolve(corpo) };
+function resposta(status, corpo, cabecalhos) {
+  return { ok: status >= 200 && status < 300, status, json: () => Promise.resolve(corpo), headers: new Headers(cabecalhos || {}) };
 }
 
 // fetch falso: devolve as respostas em ordem e guarda cada chamada.
@@ -156,6 +156,27 @@ secao("Catalogo e horarios");
   const { api } = redeFalsa([resposta(200, { profissionais: [] })]);
   const f = await falhaDe(api.profissionalPara([7]));
   ok(f && f.tipo === "recusa" && f.mensagem === M.semProfissional, "servico sem profissional: recusa clara", f);
+}
+
+secao("Espera longa (Retry-After): limite por hora da API");
+{
+  const f = (status, cab) => AgendaV1.interpretar(status, { codigo: "muitas_tentativas" }, new Headers(cab || {}));
+  const longa = f(429, { "retry-after": "982" });
+  ok(longa.tipo === "espera" && longa.esperaSegundos === 982 && /17 minutos/.test(longa.mensagem),
+    "429 com Retry-After de ~16 min diz \"cerca de 17 minutos\" (nao \"instantes\")", longa);
+  ok(/2 minutos/.test(f(503, { "retry-after": "120" }).mensagem), "503 com 120 s: \"cerca de 2 minutos\"");
+  ok(f(429, { "retry-after": "5" }).mensagem === M.espera && f(429, { "retry-after": "119" }).mensagem === M.espera,
+    "espera curta (< 2 min) mantem \"tente de novo em instantes\"");
+  ok(f(429).mensagem === M.espera && f(429).esperaSegundos === null, "sem Retry-After: texto de sempre");
+  ok(f(429, { "retry-after": "abc" }).mensagem === M.espera && f(429, { "retry-after": "-3" }).mensagem === M.espera,
+    "Retry-After invalido: texto de sempre");
+  ok(AgendaV1.interpretar(429, {}).mensagem === M.espera, "chamada antiga sem cabecalhos continua valendo");
+  ok(AgendaV1.respostaDefinitiva(longa), "espera segue sendo resposta definitiva (chave nova no proximo envio)");
+
+  // ponta a ponta: o 429 vindo da rede chega com o tempo
+  const { api } = redeFalsa([resposta(429, { codigo: "muitas_tentativas" }, { "retry-after": "982" })]);
+  const erro = await falhaDe(api.consultar("COD", "11900000000"));
+  ok(erro && erro.tipo === "espera" && /17 minutos/.test(erro.mensagem), "consultar com 429 de 982 s mostra o tempo de espera", erro);
 }
 
 secao("Estados da reserva");

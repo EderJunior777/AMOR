@@ -285,7 +285,9 @@
     if (!alvo) return;
     setTimeout(function () {
       var topo = alvo.getBoundingClientRect().top + window.pageYOffset - 90;
-      window.scrollTo({ top: topo, behavior: "smooth" });
+      // Quem pediu menos movimento no aparelho não leva rolagem animada.
+      var reduz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top: topo, behavior: reduz ? "auto" : "smooth" });
     }, 90);
   }
 
@@ -686,6 +688,86 @@
     el("barra-resumo").classList.remove("visivel");
   }
 
+  /* ------------------------------------------- janela de sucesso (dialog) */
+
+  // A tela de sucesso é uma janela modal: ao abrir, o foco vai para o título
+  // (o leitor de tela anuncia a janela); o Tab fica preso dentro dela; Esc
+  // fecha e o foco volta para onde estava no formulário. O resto da página
+  // fica inerte enquanto ela está aberta.
+  var focoAntesDoSucesso = null;
+  var FORA_DA_JANELA = ["header.capa", "main", "footer.rodape", "#barra-resumo", "#aviso-local"];
+
+  function focaveisDaJanela() {
+    var lista = el("tela-sucesso").querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    return Array.prototype.filter.call(lista, function (n) {
+      return n.getClientRects().length > 0 && getComputedStyle(n).visibility !== "hidden";
+    });
+  }
+
+  function definirInercia(inerte) {
+    FORA_DA_JANELA.forEach(function (seletor) {
+      var no = document.querySelector(seletor);
+      if (!no) return;
+      if (inerte) no.setAttribute("inert", ""); else no.removeAttribute("inert");
+    });
+  }
+
+  function abrirSucesso() {
+    // No Safari/iPhone clicar num botão NÃO dá foco a ele (activeElement fica
+    // no body): sem um alvo certo, o Esc não teria para onde devolver o foco.
+    var ativo = document.activeElement;
+    focoAntesDoSucesso = ativo && ativo !== document.body && ativo !== document.documentElement && ativo.focus
+      ? ativo
+      : el("botao-confirmar");
+    esconderBarra();
+    definirInercia(true);
+    el("tela-sucesso").hidden = false;
+    el("sucesso-titulo").focus();
+  }
+
+  function fecharSucesso() {
+    var tela = el("tela-sucesso");
+    if (tela.hidden) return;
+    tela.hidden = true;
+    definirInercia(false);
+
+    // Volta ao formulário: onde o foco estava; se aquilo não existe mais ou
+    // está desligado, o primeiro campo.
+    var alvo = focoAntesDoSucesso;
+    if (!alvo || !document.body.contains(alvo) || alvo.disabled) alvo = el("campo-nome");
+    if (alvo && alvo.focus) alvo.focus();
+    focoAntesDoSucesso = null;
+  }
+
+  function ligarJanelaDeSucesso() {
+    document.addEventListener("keydown", function (e) {
+      var tela = el("tela-sucesso");
+      if (!tela || tela.hidden) return;
+
+      if (e.key === "Escape" || e.key === "Esc") {
+        e.preventDefault();
+        fecharSucesso();
+        return;
+      }
+
+      if (e.key !== "Tab") return;
+      var focaveis = focaveisDaJanela();
+      if (!focaveis.length) { e.preventDefault(); el("sucesso-titulo").focus(); return; }
+
+      // O ciclo é sempre feito aqui, nunca pela ordem nativa: o Safari, por
+      // exemplo, não põe links no Tab, e a ordem nativa deixaria o foco sair
+      // da janela justamente a partir do que ele considera o "primeiro".
+      var indice = focaveis.indexOf(document.activeElement);   // -1: o título (ou fora)
+      var ultimoIndice = focaveis.length - 1;
+      var proximo;
+      if (e.shiftKey) proximo = focaveis[indice <= 0 ? ultimoIndice : indice - 1];
+      else proximo = focaveis[indice === -1 || indice === ultimoIndice ? 0 : indice + 1];
+
+      e.preventDefault();
+      proximo.focus();
+    });
+  }
+
   // Quando o cliente ja esta no passo final, a barra so atrapalha - ela
   // ficaria em cima do proprio botao de confirmar.
   function ligarSumicoDaBarra() {
@@ -977,8 +1059,7 @@
       observacao: form.observacao,
       total: Number(reserva.total_centavos) / 100
     });
-    tela.hidden = false;
-    esconderBarra();
+    abrirSucesso();
 
     if (el("minha-codigo")) el("minha-codigo").value = reserva.codigo;
     if (el("minha-telefone")) el("minha-telefone").value = form.telefone;
@@ -1278,8 +1359,7 @@
 
     el("sucesso-detalhe").innerHTML = html;
     el("link-zap").href = link;
-    el("tela-sucesso").hidden = false;
-    esconderBarra();
+    abrirSucesso();
 
     // Leva o cliente direto pro WhatsApp; o botao fica de reserva
     // caso o navegador bloqueie o redirecionamento.
@@ -1783,6 +1863,7 @@
     ligarRevelacoes();
     ligarLuz();
     ligarSumicoDaBarra();
+    ligarJanelaDeSucesso();
     ligarAvisoDeConexao();
 
     setInterval(atualizarStatus, 60000);

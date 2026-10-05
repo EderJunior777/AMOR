@@ -981,7 +981,7 @@ a { color: inherit; text-decoration: none; }
 
 .campo input::placeholder { color: #55524D; }
 .campo input:hover { border-color: var(--fio-forte); }
-.campo input:focus { outline: none; border-color: var(--fio-ouro); background: #0B0B0E; }
+.campo input:focus { border-color: var(--fio-ouro); background: #0B0B0E; }
 
 /* ---------------------------------------------------- select e notas */
 
@@ -1003,7 +1003,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .campo select:hover { border-color: var(--fio-forte); }
-.campo select:focus { outline: none; border-color: var(--fio-ouro); }
+.campo select:focus { border-color: var(--fio-ouro); }
 .campo select option { background: var(--elevado); color: var(--osso); }
 
 .campo-regiao { margin-top: 1rem; }
@@ -1039,7 +1039,7 @@ a { color: inherit; text-decoration: none; }
 
 .memoria-acoes { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
 
-.botao-pequeno { padding: .55rem 1.1rem; font-size: .84rem; }
+.botao-pequeno { padding: .55rem 1.1rem; font-size: .84rem; min-height: 44px; }
 
 .etiqueta-ouro { border-color: var(--fio-ouro); color: var(--ouro); }
 
@@ -1067,7 +1067,7 @@ a { color: inherit; text-decoration: none; }
   font-variant-numeric: tabular-nums;
 }
 
-.codigo-campos input:focus { outline: none; border-color: var(--fio-ouro); }
+.codigo-campos input:focus { border-color: var(--fio-ouro); }
 
 /* -------------------------------------------------------------- comanda */
 /* O resumo desenhado como a comanda da barbearia, com picote embaixo. */
@@ -1536,7 +1536,7 @@ a { color: inherit; text-decoration: none; }
   margin-top: .9rem;
 }
 
-.acoes .botao { padding: .55rem .6rem; font-size: .78rem; white-space: nowrap; }
+.acoes .botao { padding: .55rem .6rem; font-size: .78rem; white-space: nowrap; min-height: 44px; }
 
 @media (min-width: 620px) {
   .acoes { display: flex; flex-wrap: wrap; }
@@ -1605,3 +1605,26 @@ a { color: inherit; text-decoration: none; }
 .minha-remarcar h3 { margin-bottom: .3rem; }
 #btn-novo-horario { margin-top: 1rem; }
 #btn-minha-confirmar-remarcar { margin-top: 1rem; }
+
+/* ---- celular e acessibilidade (fase 4) ---------------------------------- */
+
+/* Foco dos campos: anel visível além da troca de borda (a borda sozinha some
+   para quem enxerga pouco; o outline também sobrevive ao modo de alto contraste). */
+.campo input:focus-visible,
+.campo select:focus-visible,
+.codigo-campos input:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(216, 172, 94, .22);
+}
+
+/* Áreas de toque de pelo menos 44px (dedo no celular). */
+.hora, .dia, .proximo, .local, .item { min-height: 44px; }
+.hora, .dia, .seta-dia { min-width: 44px; }
+.rodape a,
+.rodape-painel a { display: inline-flex; align-items: center; min-height: 44px; }
+.rodape-painel a { padding: 0 .5rem; }
+
+/* O título da janela de sucesso recebe o foco ao abrir (para o leitor de tela
+   anunciar a janela), mas não é um controle: sem anel nele. */
+.recibo h2:focus { outline: none; }

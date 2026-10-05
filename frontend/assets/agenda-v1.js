@@ -109,14 +109,35 @@
     return { falha: true, tipo: tipo, status: status, codigo: codigo || null, mensagem: mensagem };
   }
 
-  function interpretar(status, corpo) {
+  /* Segundos do cabeçalho Retry-After (a API manda em 429 e 503), ou null. */
+  function segundosDeEspera(cabecalhos) {
+    var valor = cabecalhos && typeof cabecalhos.get === "function" ? cabecalhos.get("retry-after") : null;
+    var segundos = Number(valor);
+    return valor !== null && valor !== "" && isFinite(segundos) && segundos > 0 ? segundos : null;
+  }
+
+  /* Espera curta (segundos): "em instantes". Espera longa, como o limite por
+     hora (a API manda Retry-After de minutos): diz quanto falta, em vez de
+     prometer "instantes" para quem vai esperar um quarto de hora. */
+  function mensagemDeEspera(segundos) {
+    if (segundos === null || segundos < 120) return MENSAGENS.espera;
+    var minutos = Math.ceil(segundos / 60);
+    return "Muitas tentativas por agora. Tente de novo em cerca de " + minutos + " minutos.";
+  }
+
+  function interpretar(status, corpo, cabecalhos) {
     corpo = corpo || {};
     if (status === 409) return falha("conflito", status, corpo.codigo, MENSAGENS.conflito);
     if (status === 422) {
       var mensagem = typeof corpo.mensagem === "string" && corpo.mensagem ? corpo.mensagem : MENSAGENS.recusa;
       return falha("recusa", status, corpo.codigo, mensagem);
     }
-    if (status === 429 || status === 503) return falha("espera", status, corpo.codigo, MENSAGENS.espera);
+    if (status === 429 || status === 503) {
+      var espera = segundosDeEspera(cabecalhos);
+      var f = falha("espera", status, corpo.codigo, mensagemDeEspera(espera));
+      f.esperaSegundos = espera;
+      return f;
+    }
     return falha("erro", status, corpo.codigo, MENSAGENS.erro);
   }
 
@@ -190,7 +211,7 @@
               function () { desligarRelogio(); throw falha("rede", 0, null, MENSAGENS.rede); })
         .then(function (resposta) {
           return resposta.json().then(null, function () { return {}; }).then(function (dados) {
-            if (!resposta.ok) throw interpretar(resposta.status, dados);
+            if (!resposta.ok) throw interpretar(resposta.status, dados, resposta.headers);
             return { status: resposta.status, dados: dados };
           });
         });
@@ -311,6 +332,7 @@
   var AgendaV1 = {
     criar: criar,
     interpretar: interpretar,
+    mensagemDeEspera: mensagemDeEspera,
     respostaDefinitiva: respostaDefinitiva,
     novaChave: novaChave,
     tentativaPara: tentativaPara,
