@@ -2,8 +2,8 @@
    Painel do barbeiro: os agendamentos do dia, com o resumo do caixa e o
    botao de liberar horario quando alguem desmarca.
 
-   O PIN e conferido no servidor (variavel PIN_PAINEL na Netlify; enquanto
-   voce nao trocar, o padrao e 1234).
+   O PIN e conferido no servidor (variavel PIN_PAINEL na Netlify, obrigatoria:
+   sem ela o painel responde 503).
    ========================================================================= */
 
 (function () {
@@ -100,7 +100,7 @@
   function carregar(dia) {
     diaAtual = dia;
     el("campo-dia").value = dia;
-    el("lista-agendamentos").innerHTML = '<div class="esqueleto" style="height:6rem"></div>';
+    el("lista-agendamentos").innerHTML = '<div class="esqueleto esqueleto-alto"></div>';
 
     buscar(dia)
       .then(desenhar)

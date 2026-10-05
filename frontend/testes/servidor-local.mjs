@@ -89,5 +89,5 @@ const servidor = createServer(async (req, res) => {
 
 servidor.listen(PORTA, () => {
   console.log(`\n  Site:   http://localhost:${PORTA}`);
-  console.log(`  Agenda: http://localhost:${PORTA}/agenda.html  (PIN 1234)\n`);
+  console.log(`  Agenda: http://localhost:${PORTA}/agenda.html  (PIN ${process.env.PIN_PAINEL})\n`);
 });

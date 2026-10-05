@@ -41,18 +41,18 @@
     <div class="capa-grade">
 
       <div class="capa-texto">
-      <div class="revela" style="--atraso:.05s">
+      <div class="revela atraso-5">
         <span class="status">
           <span class="pulso" id="status-ponto"></span>
           <span id="status-aberto">Carregando horarios...</span>
         </span>
       </div>
 
-      <h1 class="revela" style="--atraso:.12s" id="capa-titulo">Barbearia</h1>
+      <h1 class="revela atraso-12" id="capa-titulo">Barbearia</h1>
 
-      <p class="capa-slogan revela" style="--atraso:.2s" id="capa-slogan"></p>
+      <p class="capa-slogan revela atraso-20" id="capa-slogan"></p>
 
-      <div class="capa-acoes revela" style="--atraso:.28s">
+      <div class="capa-acoes revela atraso-28">
         <a class="botao botao-ouro" href="#agendar">
           <span>Marcar meu horario</span>
           <span class="seta" aria-hidden="true">&rarr;</span>
@@ -62,7 +62,7 @@
         </a>
       </div>
 
-      <div class="capa-rodape revela" style="--atraso:.36s">
+      <div class="capa-rodape revela atraso-36">
         <div>
           <b class="dado-forte" id="dado-horario">08h &ndash; 20h</b>
           <span class="dado-fraco">Todos os dias</span>
@@ -78,7 +78,7 @@
       </div>
       </div>
 
-      <aside class="cartao-proximos revela" id="cartao-proximos" style="--atraso:.44s" hidden>
+      <aside class="cartao-proximos revela atraso-44" id="cartao-proximos" hidden>
         <p class="rotulo">Proximos horarios</p>
         <div class="proximos-lista" id="proximos-lista"></div>
         <p class="proximos-nota">Toque num horario para comecar por esse dia.</p>
@@ -103,7 +103,7 @@
         </div>
       </article>
 
-      <article class="faixa-item revela" style="--atraso:.08s">
+      <article class="faixa-item revela atraso-8">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>
         </svg>
@@ -113,7 +113,7 @@
         </div>
       </article>
 
-      <article class="faixa-item revela" style="--atraso:.16s">
+      <article class="faixa-item revela atraso-16">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 20.5l1.8-5.2A8.5 8.5 0 1 1 21 11.5Z"/>
         </svg>
@@ -256,7 +256,7 @@
 
           <p class="erro" id="erro-form" hidden></p>
 
-          <button class="botao botao-ouro botao-largo" type="submit" id="botao-confirmar" style="margin-top:1.3rem">
+          <button class="botao botao-ouro botao-largo espaco-botao-confirmar" type="submit" id="botao-confirmar">
             <span>Confirmar e ir para o WhatsApp</span>
             <span class="seta" aria-hidden="true">&rarr;</span>
           </button>
@@ -271,7 +271,7 @@
 
 <!-- ====================================================== minha reserva -->
 <!-- So com a agenda nova ligada (CONFIG.agendaNova, SO HOMOLOGACAO). -->
-<section class="secao" id="minha-reserva" hidden style="padding-top:0">
+<section class="secao secao-sem-topo" id="minha-reserva" hidden>
   <div class="envelope">
     <span class="rotulo">Minha reserva</span>
     <h2>Consultar, cancelar ou remarcar</h2>
@@ -309,7 +309,7 @@
 </section>
 
 <!-- ========================================================== domicilio -->
-<section class="secao" id="domicilio-secao" style="padding-top:0">
+<section class="secao secao-sem-topo" id="domicilio-secao">
   <div class="envelope">
     <div class="domicilio revela">
       <div class="domicilio-grade">
@@ -338,7 +338,7 @@
     <div class="rodape-grade">
       <div>
         <h3 id="rodape-nome">Barbearia</h3>
-        <div class="poste poste-fino" style="max-width:120px;margin:.8rem 0 1rem" aria-hidden="true"></div>
+        <div class="poste poste-fino poste-curto" aria-hidden="true"></div>
         <p id="rodape-slogan"></p>
       </div>
 
@@ -356,7 +356,6 @@
 
     <div class="rodape-fim">
       <span id="rodape-horario">Todos os dias, das 08h as 20h</span>
-      <a href="agenda.html">Area do barbeiro</a>
     </div>
   </div>
 </footer>
@@ -404,12 +403,6 @@
 <script src="assets/config.js"></script>
 <script src="assets/agenda-v1.js"></script>
 <script src="assets/app.js"></script>
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", function () {
-      navigator.serviceWorker.register("sw.js").catch(function () {});
-    });
-  }
-</script>
+<script src="assets/registrar-sw.js"></script>
 </body>
 </html>

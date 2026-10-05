@@ -26,13 +26,21 @@
      DELETE ?dia=...&grupo=...&pin=XXXX  -> libera um horario
    ========================================================================= */
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import CONFIG from "../../assets/config.js";
 import { registrarAtendimento, verificacaoLigada } from "./cliente.mjs";
 
-// PIN do painel do barbeiro. Para trocar, crie a variavel de ambiente
-// PIN_PAINEL na Netlify (Site settings > Environment variables).
-const PIN_PAINEL = process.env.PIN_PAINEL || "1234";
+// PIN do painel do barbeiro: variavel de ambiente PIN_PAINEL na Netlify
+// (Site settings > Environment variables). OBRIGATORIA: sem ela o painel
+// recusa tudo (503) em vez de cair num PIN conhecido. Lida a cada pedido.
+const pinConfigurado = () => String(process.env.PIN_PAINEL || "");
+
+// Compara os dois por hash (mesmo tamanho) em tempo constante.
+const hash = (texto) => createHash("sha256").update(String(texto)).digest();
+const pinConfere = (informado) => timingSafeEqual(hash(informado), hash(pinConfigurado()));
+
+const painelNaoConfigurado = () => json({ erro: "Painel não configurado" }, 503);
 
 const PASSO = Number(CONFIG.intervaloMinutos) || 30;
 const MAX_DIAS = Number(CONFIG.diasParaFrente) || 30;
@@ -335,7 +343,10 @@ export default async (req) => {
       if (!ehDia(dia)) return json({ erro: "Informe o dia no formato AAAA-MM-DD." }, 400);
 
       const pin = url.searchParams.get("pin");
-      if (pin !== null && pin !== PIN_PAINEL) return json({ erro: "PIN incorreto." }, 401);
+      if (pin !== null) {
+        if (!pinConfigurado()) return painelNaoConfigurado();
+        if (!pinConfere(pin)) return json({ erro: "PIN incorreto." }, 401);
+      }
 
       return await listarDia(dia, pin !== null);
     }
@@ -347,7 +358,8 @@ export default async (req) => {
     }
 
     if (req.method === "DELETE") {
-      if (url.searchParams.get("pin") !== PIN_PAINEL) return json({ erro: "PIN incorreto." }, 401);
+      if (!pinConfigurado()) return painelNaoConfigurado();
+      if (!pinConfere(url.searchParams.get("pin") ?? "")) return json({ erro: "PIN incorreto." }, 401);
       return await liberar(url.searchParams.get("dia") || "", url.searchParams.get("grupo") || "");
     }
 

@@ -28,6 +28,10 @@ process.env.NETLIFY_BLOBS_CONTEXT = Buffer.from(JSON.stringify({
   primaryRegion: "us-east-1"
 })).toString("base64");
 
+// O PIN e obrigatorio: o teste define o seu, nunca depende de um padrao.
+const PIN = "pin-de-teste-9471";
+process.env.PIN_PAINEL = PIN;
+
 const { default: handler, _definirRelogioParaTestes } = await import("../netlify/functions/agenda.mjs");
 
 // Relogio fixo: a suite da o mesmo resultado a qualquer hora do dia (antes
@@ -275,6 +279,9 @@ r = await chamar("GET", `?dia=${DIA}&pin=errado`);
 ok(r.status === 401, "PIN errado bloqueado", r);
 
 r = await chamar("GET", `?dia=${DIA}&pin=1234`);
+ok(r.status === 401, "o antigo PIN padrao 1234 nao abre o painel", r);
+
+r = await chamar("GET", `?dia=${DIA}&pin=${PIN}`);
 const horas = (r.corpo.agendamentos || []).map((a) => a.hora);
 ok(r.status === 200 && horas.join(",") === "11:00,14:30,15:30,17:00,19:30",
    "painel lista um item por agendamento, em ordem", horas);
@@ -285,8 +292,24 @@ console.log("\n--- Liberar horario ---");
 r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}&pin=errado`);
 ok(r.status === 401, "liberar sem o PIN certo bloqueado", r);
 
-r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}&pin=1234`);
+r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}`);
+ok(r.status === 401, "liberar sem informar o PIN bloqueado", r);
+
+r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}&pin=${PIN}`);
 ok(r.status === 200 && r.corpo.liberados === 2, "liberou os 2 blocos do combo", r);
+
+console.log("\n--- Sem PIN_PAINEL o painel recusa ---");
+delete process.env.PIN_PAINEL;
+r = await chamar("GET", `?dia=${DIA}&pin=1234`);
+ok(r.status === 503 && r.corpo.erro === "Painel não configurado", "painel sem PIN configurado: 503", r);
+r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}&pin=1234`);
+ok(r.status === 503, "liberar sem PIN configurado: 503", r);
+process.env.PIN_PAINEL = "";
+r = await chamar("GET", `?dia=${DIA}&pin=`);
+ok(r.status === 503, "PIN_PAINEL vazio tambem recusa (nao aceita PIN vazio)", r);
+r = await chamar("GET", `?dia=${DIA}`);
+ok(r.status === 200, "consulta publica de horarios segue funcionando sem PIN configurado", r);
+process.env.PIN_PAINEL = PIN;
 
 r = await chamar("GET", `?dia=${DIA}`);
 // Sem conferir o formato, este teste passava por acaso quando a lista

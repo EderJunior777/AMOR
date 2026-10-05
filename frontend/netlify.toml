@@ -12,3 +12,14 @@
   for = "/agenda.html"
   [headers.values]
     X-Robots-Tag = "noindex"
+
+# Cabecalhos de seguranca para todo o site. A CSP so aceita arquivos do
+# proprio dominio: nada de script ou estilo dentro do HTML.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000"

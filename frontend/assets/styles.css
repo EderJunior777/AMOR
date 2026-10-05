@@ -1553,3 +1553,20 @@ a { color: inherit; text-decoration: none; }
   }
   .revela { opacity: 1; transform: none; }
 }
+
+/* ---- classes que substituem style="..." (CSP sem 'unsafe-inline') ---- */
+.atraso-5  { --atraso: .05s; }
+.atraso-8  { --atraso: .08s; }
+.atraso-12 { --atraso: .12s; }
+.atraso-16 { --atraso: .16s; }
+.atraso-20 { --atraso: .2s; }
+.atraso-28 { --atraso: .28s; }
+.atraso-36 { --atraso: .36s; }
+.atraso-44 { --atraso: .44s; }
+.secao-sem-topo { padding-top: 0; }
+.espaco-botao-entrar { margin-top: 1.1rem; }
+.espaco-botao-confirmar { margin-top: 1.3rem; }
+.poste.poste-curto { max-width: 120px; margin: .8rem 0 1rem; }
+.esqueleto.esqueleto-alto { height: 6rem; }
+.rodape-painel { margin-top: 2rem; text-align: center; }
+.rodape-painel a { color: var(--fumaca); font-size: .85rem; }

@@ -22,6 +22,7 @@ const ESSENCIAIS = [
   "./assets/agenda-v1.js",
   "./assets/app.js",
   "./assets/admin.js",
+  "./assets/registrar-sw.js",
   "./assets/icone.svg",
   "./assets/fontes/inter.woff2",
   "./assets/fontes/instrument-serif.woff2",
