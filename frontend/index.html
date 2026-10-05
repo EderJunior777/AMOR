@@ -213,6 +213,7 @@
             <label class="campo">
               <span>WhatsApp</span>
               <input type="tel" id="campo-telefone" name="telefone" autocomplete="tel" placeholder="(11) 98765-4321" maxlength="20" required>
+              <small class="campo-nota" id="nota-telefone" hidden>Use um número seu, com DDD. Para consultar, remarcar ou cancelar depois, tem que ser o mesmo número usado nesta reserva.</small>
             </label>
 
             <label class="campo campo-largo" id="campo-endereco-area" hidden>
@@ -275,7 +276,7 @@
   <div class="envelope">
     <span class="rotulo">Minha reserva</span>
     <h2>Consultar, cancelar ou remarcar</h2>
-    <p class="campo-nota">Use o código que apareceu quando você reservou e o mesmo telefone.</p>
+    <p class="campo-nota">Use o código que apareceu quando você reservou e o <strong>mesmo número de telefone</strong>, com DDD.</p>
 
     <div class="campos">
       <label class="campo campo-largo">
@@ -285,26 +286,31 @@
       <label class="campo">
         <span>WhatsApp</span>
         <input type="tel" id="minha-telefone" autocomplete="tel" placeholder="(11) 98765-4321" maxlength="20">
-      </label>
-      <label class="campo">
-        <span>Novo dia <em>(para remarcar)</em></span>
-        <input type="date" id="minha-data">
-      </label>
-      <label class="campo">
-        <span>Novo horário <em>(para remarcar)</em></span>
-        <input type="time" id="minha-hora" step="1800">
+        <small class="campo-nota">Precisa ser o mesmo número usado na reserva, com DDD.</small>
       </label>
     </div>
 
     <div class="memoria-acoes">
       <button type="button" class="botao botao-pequeno" id="btn-minha-consultar"><span>Consultar</span></button>
-      <button type="button" class="botao botao-pequeno" id="btn-minha-remarcar"><span>Remarcar</span></button>
+      <button type="button" class="botao botao-pequeno" id="btn-minha-remarcar" disabled><span>Remarcar</span></button>
       <button type="button" class="botao botao-pequeno" id="btn-minha-cancelar"><span>Cancelar reserva</span></button>
     </div>
 
     <p class="erro" id="minha-erro" hidden></p>
     <p class="campo-nota" id="minha-aviso"></p>
     <div class="recibo-dados" id="minha-detalhe"></div>
+
+    <button type="button" class="botao botao-ouro botao-pequeno" id="btn-novo-horario" hidden><span>Marcar novo horário</span></button>
+
+    <div class="minha-remarcar" id="minha-remarcar" hidden>
+      <h3>Escolha o novo dia e horário</h3>
+      <p class="campo-nota" id="minha-remarcar-nota">Os horários mostrados são do mesmo serviço, local e região da sua reserva.</p>
+      <div class="dias-caixa">
+        <div class="dias" id="minha-dias"></div>
+      </div>
+      <div id="minha-horas"></div>
+      <button type="button" class="botao botao-ouro botao-pequeno" id="btn-minha-confirmar-remarcar" disabled><span>Confirmar novo horário</span></button>
+    </div>
   </div>
 </section>
 
@@ -386,6 +392,13 @@
     <p class="recibo-sub">Guardamos no seu nome. Agora é só confirmar com o barbeiro.</p>
 
     <div class="recibo-dados" id="sucesso-detalhe"></div>
+
+    <div class="codigo-reserva" id="sucesso-codigo-bloco" hidden>
+      <span class="codigo-reserva-rotulo" id="sucesso-codigo-rotulo">Código da reserva</span>
+      <code class="codigo-reserva-valor" id="sucesso-codigo" aria-labelledby="sucesso-codigo-rotulo"></code>
+      <button class="botao botao-pequeno" type="button" id="btn-copiar-codigo"><span>Copiar código</span></button>
+      <span class="codigo-reserva-aviso" id="aviso-copiado" aria-live="polite"></span>
+    </div>
 
     <a class="botao botao-zap botao-largo" id="link-zap" href="#" target="_blank" rel="noopener">
       <span>Abrir o WhatsApp</span>

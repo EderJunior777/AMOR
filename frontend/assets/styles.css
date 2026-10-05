@@ -1340,6 +1340,7 @@ a { color: inherit; text-decoration: none; }
   top: 0;
   left: 1.6rem;
   right: 1.6rem;
+  width: auto;   /* .poste-fino traz width:100%, que somado ao left estourava a tela em 1.6rem */
   height: 3px;
 }
 
@@ -1570,3 +1571,37 @@ a { color: inherit; text-decoration: none; }
 .esqueleto.esqueleto-alto { height: 6rem; }
 .rodape-painel { margin-top: 2rem; text-align: center; }
 .rodape-painel a { color: var(--fumaca); font-size: .85rem; }
+
+/* ---- agenda nova: código da reserva e "Minha reserva" ------------------- */
+
+/* Código grande, em fonte mono, que quebra em qualquer ponto (cabe no celular
+   mesmo com 40+ caracteres) e seleciona inteiro com um toque. */
+.codigo-reserva {
+  display: grid;
+  gap: .55rem;
+  justify-items: start;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px dashed var(--fio-ouro);
+  border-radius: 12px;
+  text-align: left;
+}
+.codigo-reserva-rotulo { font-size: .78rem; color: var(--fumaca); letter-spacing: .06em; text-transform: uppercase; }
+.codigo-reserva-valor {
+  display: block;
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 1.25rem;
+  line-height: 1.35;
+  color: var(--osso);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: all;
+  -webkit-user-select: all;
+}
+.codigo-reserva-aviso { min-height: 1.2em; font-size: .85rem; color: var(--ouro); }
+
+.minha-remarcar { margin-top: 1.5rem; }
+.minha-remarcar h3 { margin-bottom: .3rem; }
+#btn-novo-horario { margin-top: 1rem; }
+#btn-minha-confirmar-remarcar { margin-top: 1rem; }

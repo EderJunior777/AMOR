@@ -886,16 +886,10 @@
     return linha;
   }
 
-  var ESTADOS_DA_RESERVA = {
-    solicitado: "Aguardando confirmação do barbeiro",
-    confirmado: "Confirmada",
-    em_atendimento: "Em atendimento",
-    concluido: "Concluída",
-    cancelado: "Cancelada",
-    nao_compareceu: "Não compareceu"
-  };
-
-  function linhasDaReserva(caixa, reserva) {
+  // Estados, rotulos e regras (o que oferecer em cada estado) moram no
+  // agenda-v1.js, onde os testes de unidade os cobrem. Estado desconhecido
+  // vira "Em análise": nunca o texto cru da API.
+  function linhasDaReserva(caixa, reserva, semCodigo) {
     var nomes = (reserva.servicos || []).map(function (s) { return s.nome; }).join(" + ");
     var duracao = (reserva.servicos || []).reduce(function (t, s) { return t + Number(s.duracao_minutos); }, 0);
     var fim = paraHora(emMinutos(reserva.hora) + duracao);
@@ -906,9 +900,50 @@
       ? "Na sua casa" + (reserva.regiao_nome ? " - " + reserva.regiao_nome : "")
       : "Na barbearia"));
     caixa.appendChild(linhaDeRecibo("Total", dinheiro(Number(reserva.total_centavos) / 100)));
-    caixa.appendChild(linhaDeRecibo("Situação", ESTADOS_DA_RESERVA[reserva.estado] || reserva.estado));
-    caixa.appendChild(linhaDeRecibo("Código da reserva", reserva.codigo));
+    caixa.appendChild(linhaDeRecibo("Situação", window.AgendaV1.rotuloDoEstado(reserva.estado)));
+    if (!semCodigo) caixa.appendChild(linhaDeRecibo("Código da reserva", reserva.codigo));
     return { nomes: nomes, duracao: duracao };
+  }
+
+  // Botão "Copiar código" da tela de sucesso: clipboard e, se não der,
+  // seleciona o texto para o cliente copiar pelo menu do aparelho. O aviso
+  // fica numa região aria-live (e é limpo antes, para repetir o anúncio).
+  function ligarCopiarCodigo() {
+    var botao = el("btn-copiar-codigo");
+    if (!botao) return;
+    var aviso = el("aviso-copiado");
+
+    function selecionar() {
+      var faixa = document.createRange();
+      faixa.selectNodeContents(el("sucesso-codigo"));
+      var selecao = window.getSelection();
+      selecao.removeAllRanges();
+      selecao.addRange(faixa);
+    }
+
+    function dizer(texto) {
+      aviso.textContent = "";
+      setTimeout(function () { aviso.textContent = texto; }, 40);
+    }
+
+    function aMaoSeguida() {
+      selecionar();
+      var copiou = false;
+      try { copiou = document.execCommand("copy"); } catch (e) { copiou = false; }
+      dizer(copiou ? "Copiado!" : "Código selecionado: use Copiar no menu do aparelho.");
+    }
+
+    botao.addEventListener("click", function () {
+      var codigo = el("sucesso-codigo").textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(codigo).then(function () {
+          selecionar();
+          dizer("Copiado!");
+        }, aMaoSeguida);
+      } else {
+        aMaoSeguida();
+      }
+    });
   }
 
   // Sucesso na agenda nova: mostra o codigo (credencial para consultar,
@@ -917,13 +952,17 @@
   function mostrarSucessoDaAgendaNova(reserva, form) {
     var caixa = el("sucesso-detalhe");
     caixa.textContent = "";
-    var resumo = linhasDaReserva(caixa, reserva);
+    var resumo = linhasDaReserva(caixa, reserva, true);
+
+    el("sucesso-codigo").textContent = reserva.codigo;
+    el("aviso-copiado").textContent = "";
+    el("sucesso-codigo-bloco").hidden = false;
 
     var tela = el("tela-sucesso");
     tela.querySelector("h2").textContent = "Pedido de horário enviado";
     tela.querySelector(".recibo-sub").textContent = "O horário fica guardado no seu nome enquanto o barbeiro confirma.";
-    tela.querySelector(".recibo-nota").textContent = "Guarde o código da reserva: com ele e o mesmo telefone dá pra " +
-      "consultar, cancelar ou remarcar em \"Minha reserva\", mais abaixo na página.";
+    tela.querySelector(".recibo-nota").textContent = "Guarde o código da reserva: com ele e o mesmo número de telefone " +
+      "da reserva (com DDD) dá pra consultar, cancelar ou remarcar em \"Minha reserva\", mais abaixo na página.";
 
     el("link-zap").href = montarMensagem({
       servico: resumo.nomes,
@@ -946,14 +985,19 @@
   }
 
   // Consultar, cancelar e remarcar por codigo + telefone (so agenda nova).
+  // Remarcar so existe DEPOIS de consultar: os horarios vem da API de
+  // disponibilidade, com o servico, a modalidade, a regiao e o profissional
+  // da PROPRIA reserva (nunca campos soltos de data e hora).
   function ligarMinhaReserva() {
     var secao = el("minha-reserva");
     if (!secao || !agendaNova) return;
     secao.hidden = false;
+    el("nota-telefone").hidden = false;
+    ligarCopiarCodigo();
 
-    el("minha-telefone").addEventListener("input", function (e) {
-      e.target.value = mascaraTelefone(e.target.value);
-    });
+    var V1 = window.AgendaV1;
+    var consultada = null;                  // { codigo, telefone, reserva } da ultima consulta
+    var novo = { dia: null, hora: null, pedido: 0, filtro: null };
 
     function avisar(erro, aviso) {
       el("minha-erro").textContent = erro || "";
@@ -961,24 +1005,70 @@
       el("minha-aviso").textContent = aviso || "";
     }
 
+    function fecharRemarcacao() {
+      novo.pedido++;
+      novo.dia = null;
+      novo.hora = null;
+      novo.filtro = null;
+      el("minha-remarcar").hidden = true;
+      el("minha-dias").textContent = "";
+      el("minha-horas").textContent = "";
+      el("btn-minha-confirmar-remarcar").disabled = true;
+    }
+
+    // Mudou o codigo ou o telefone: a consulta anterior deixa de valer, e
+    // com ela o direito de remarcar.
+    function invalidarConsulta() {
+      if (!consultada) return;
+      consultada = null;
+      el("btn-minha-remarcar").disabled = true;
+      el("btn-novo-horario").hidden = true;
+      el("minha-detalhe").textContent = "";
+      fecharRemarcacao();
+    }
+
+    function mostrarReserva(reserva) {
+      var caixa = el("minha-detalhe");
+      caixa.textContent = "";
+      linhasDaReserva(caixa, reserva);
+      fecharRemarcacao();
+      el("btn-minha-remarcar").disabled = !V1.podeRemarcar(reserva.estado);
+      el("btn-novo-horario").hidden = !V1.ofereceNovoHorario(reserva.estado);
+      return reserva.estado === "confirmado"
+        ? "Reserva confirmada: o horário não é remarcado por aqui. Cancele e marque um novo horário."
+        : "";
+    }
+
+    el("minha-telefone").addEventListener("input", function (e) {
+      e.target.value = mascaraTelefone(e.target.value);
+      invalidarConsulta();
+    });
+    el("minha-codigo").addEventListener("input", invalidarConsulta);
+
+    function dadosDosCampos() {
+      var codigo = el("minha-codigo").value.trim();
+      var telefone = el("minha-telefone").value.trim();
+      if (!codigo || telefone.replace(/\D/g, "").length < 10) {
+        avisar("Informe o código da reserva e o telefone com DDD.");
+        return null;
+      }
+      return { codigo: codigo, telefone: telefone };
+    }
+
     function acao(id, executar) {
       var botao = el(id);
       botao.addEventListener("click", function () {
-        var codigo = el("minha-codigo").value.trim();
-        var telefone = el("minha-telefone").value.trim();
-        if (!codigo || telefone.replace(/\D/g, "").length < 10) {
-          return avisar("Informe o código da reserva e o telefone com DDD.");
-        }
+        var campos = dadosDosCampos();
+        if (!campos) return;
         avisar("");
         botao.disabled = true;
         Promise.resolve()
-          .then(function () { return executar(codigo, telefone); })
-          .then(function (resultado) {
-            if (!resultado) return;
-            var caixa = el("minha-detalhe");
-            caixa.textContent = "";
-            linhasDaReserva(caixa, resultado.reserva);
-            avisar("", resultado.aviso);
+          .then(function () { return executar(campos.codigo, campos.telefone); })
+          .then(function (reserva) {
+            if (!reserva) return;
+            consultada = { codigo: campos.codigo, telefone: campos.telefone, reserva: reserva.reserva };
+            var nota = mostrarReserva(reserva.reserva);
+            avisar("", reserva.aviso || nota);
           }, function (falha) {
             avisar((falha && falha.mensagem) || ERRO_GENERICO);
           })
@@ -990,20 +1080,186 @@
       return agendaNova.consultar(codigo, telefone).then(function (r) { return { reserva: r }; });
     });
 
-    acao("btn-minha-remarcar", function (codigo, telefone) {
-      var dia = el("minha-data").value;
-      var hora = el("minha-hora").value;
-      if (!dia || !hora) throw { mensagem: "Escolha o novo dia e o novo horário." };
-      return agendaNova.remarcar(codigo, telefone, dia, hora).then(function (r) {
-        return { reserva: r, aviso: "Reserva remarcada." };
-      });
-    });
-
     acao("btn-minha-cancelar", function (codigo, telefone) {
       if (!window.confirm("Cancelar esta reserva?")) return null;
       return agendaNova.cancelar(codigo, telefone).then(function (r) {
         return { reserva: r, aviso: "Reserva cancelada." };
       });
+    });
+
+    // ---- remarcar: dias e horarios livres da propria reserva ------------
+
+    function textoDaFalha(falha) {
+      return (falha && falha.mensagem) || ERRO_GENERICO;
+    }
+
+    function desenharHorasDaRemarcacao(horas) {
+      var caixa = el("minha-horas");
+      caixa.textContent = "";
+
+      if (!horas.length) {
+        var vazio = document.createElement("div");
+        vazio.className = "vazio";
+        vazio.textContent = "Nenhum horário livre nesse dia. Tente outro dia.";
+        caixa.appendChild(vazio);
+        return;
+      }
+
+      var grade = document.createElement("div");
+      grade.className = "horas";
+      horas.forEach(function (hora) {
+        var botao = document.createElement("button");
+        botao.type = "button";
+        botao.className = "hora";
+        botao.setAttribute("aria-pressed", "false");
+        var rotulo = document.createElement("span");
+        rotulo.textContent = hora;
+        botao.appendChild(rotulo);
+
+        botao.addEventListener("click", function () {
+          novo.hora = hora;
+          Array.prototype.forEach.call(grade.children, function (b) {
+            b.setAttribute("aria-pressed", String(b === botao));
+          });
+          el("btn-minha-confirmar-remarcar").disabled = false;
+        });
+        grade.appendChild(botao);
+      });
+      caixa.appendChild(grade);
+    }
+
+    function carregarHorasDaRemarcacao() {
+      var caixa = el("minha-horas");
+      var pedido = ++novo.pedido;
+      novo.hora = null;
+      el("btn-minha-confirmar-remarcar").disabled = true;
+
+      caixa.textContent = "";
+      var espera = document.createElement("div");
+      espera.className = "horas";
+      for (var i = 0; i < 8; i++) {
+        var bloco = document.createElement("div");
+        bloco.className = "esqueleto";
+        espera.appendChild(bloco);
+      }
+      caixa.appendChild(espera);
+
+      var f = novo.filtro;
+      agendaNova.horarios({
+        data: novo.dia,
+        servicoIds: f.servicoIds,
+        profissionalId: f.profissionalId,
+        modalidade: f.modalidade,
+        regiaoId: f.regiaoId
+      }).then(function (horas) {
+        if (pedido !== novo.pedido) return;     // dia ja trocado ou consulta invalidada
+        desenharHorasDaRemarcacao(horas);
+      }, function (falha) {
+        if (pedido !== novo.pedido) return;
+        caixa.textContent = "";
+        var aviso = document.createElement("div");
+        aviso.className = "vazio";
+        aviso.textContent = textoDaFalha(falha);
+        caixa.appendChild(aviso);
+      });
+    }
+
+    function desenharDiasDaRemarcacao() {
+      var caixa = el("minha-dias");
+      caixa.textContent = "";
+      var fechados = CONFIG.diasFechados || [];
+      var hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
+      for (var i = 0; i < Number(CONFIG.diasParaFrente || 30); i++) {
+        var data = new Date(hoje.getTime());
+        data.setDate(data.getDate() + i);
+        if (fechados.indexOf(data.getDay()) !== -1) continue;
+
+        (function (data, i) {
+          var iso = paraISO(data);
+          var botao = document.createElement("button");
+          botao.type = "button";
+          botao.className = "dia";
+          botao.setAttribute("aria-pressed", "false");
+
+          [["dia-semana", i === 0 ? "Hoje" : SEMANA[data.getDay()]],
+           ["dia-numero", String(data.getDate())],
+           ["dia-mes", MESES[data.getMonth()]]].forEach(function (par) {
+            var parte = document.createElement("span");
+            parte.className = par[0];
+            parte.textContent = par[1];
+            botao.appendChild(parte);
+          });
+
+          botao.addEventListener("click", function () {
+            novo.dia = iso;
+            Array.prototype.forEach.call(caixa.children, function (b) {
+              b.setAttribute("aria-pressed", String(b === botao));
+            });
+            carregarHorasDaRemarcacao();
+          });
+          caixa.appendChild(botao);
+        })(data, i);
+      }
+    }
+
+    // Remarcar so abre depois de consultar, e so se a reserva permite.
+    el("btn-minha-remarcar").addEventListener("click", function () {
+      if (!consultada) return avisar("Consulte a reserva primeiro.");
+      if (!V1.podeRemarcar(consultada.reserva.estado)) {
+        return avisar("Esta reserva não pode ser remarcada por aqui.");
+      }
+      avisar("");
+      var botao = el("btn-minha-remarcar");
+      var atual = consultada;
+      botao.disabled = true;
+
+      agendaNova.catalogo().then(function (catalogo) {
+        var filtro = V1.horariosDaReserva(atual.reserva, catalogo);
+        if (!filtro) {
+          throw { mensagem: "Não consegui conferir os horários dessa reserva. Fale com o barbeiro pelo WhatsApp." };
+        }
+        return agendaNova.profissionalDaReserva(filtro.servicoIds, filtro.profissionalNome).then(function (id) {
+          filtro.profissionalId = id;
+          return filtro;
+        });
+      }).then(function (filtro) {
+        if (consultada !== atual) return;        // mudou o codigo ou o telefone no meio
+        novo.filtro = filtro;
+        novo.dia = null;
+        novo.hora = null;
+        el("minha-horas").textContent = "";
+        desenharDiasDaRemarcacao();
+        el("minha-remarcar").hidden = false;
+      }).then(null, function (falha) {
+        avisar(textoDaFalha(falha));
+      }).then(function () {
+        if (consultada === atual) botao.disabled = !V1.podeRemarcar(atual.reserva.estado);
+      });
+    });
+
+    el("btn-minha-confirmar-remarcar").addEventListener("click", function () {
+      if (!consultada || !novo.dia || !novo.hora) return avisar("Escolha o novo dia e o novo horário.");
+      var botao = el("btn-minha-confirmar-remarcar");
+      var atual = consultada;
+      avisar("");
+      botao.disabled = true;
+
+      agendaNova.remarcar(atual.codigo, atual.telefone, novo.dia, novo.hora).then(function (reserva) {
+        consultada = { codigo: atual.codigo, telefone: atual.telefone, reserva: reserva };
+        mostrarReserva(reserva);
+        avisar("", "Reserva remarcada.");
+      }, function (falha) {
+        avisar(textoDaFalha(falha));
+        if (falha && falha.tipo === "conflito") carregarHorasDaRemarcacao();   // horario acabou de ser ocupado
+        else botao.disabled = !novo.hora;
+      });
+    });
+
+    // Reserva encerrada sem atendimento: volta para o inicio do agendamento.
+    el("btn-novo-horario").addEventListener("click", function () {
+      irPara("agendar");
     });
   }
 
