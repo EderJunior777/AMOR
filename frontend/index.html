@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agendamento - Barbearia</title>
-<meta name="description" content="Escolha o servico, veja os horarios realmente livres e confirme no WhatsApp. Atendimento na barbearia e a domicilio.">
+<meta name="description" content="Escolha o serviço, veja os horários realmente livres e confirme no WhatsApp. Atendimento na barbearia e a domicílio.">
 <meta name="theme-color" content="#0A0A0D">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Agende seu corte">
-<meta property="og:description" content="Escolha o servico, marque o horario e confirme no WhatsApp.">
+<meta property="og:description" content="Escolha o serviço, marque o horário e confirme no WhatsApp.">
 <link rel="icon" href="assets/icone.svg" type="image/svg+xml">
 <link rel="icon" href="assets/icone-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="assets/icone-180.png">
@@ -26,8 +26,8 @@
 <div class="grao" aria-hidden="true"></div>
 
 <div id="aviso-local" class="aviso-local" hidden>
-  <strong>Modo demonstracao.</strong> A agenda compartilhada nao respondeu, entao os horarios
-  marcados aqui ficam so neste aparelho e nao bloqueiam outros clientes.
+  <strong>Modo demonstração.</strong> A agenda compartilhada não respondeu, então os horários
+  marcados aqui ficam só neste aparelho e não bloqueiam outros clientes.
 </div>
 
 <!-- ============================================================== capa -->
@@ -44,7 +44,7 @@
       <div class="revela atraso-5">
         <span class="status">
           <span class="pulso" id="status-ponto"></span>
-          <span id="status-aberto">Carregando horarios...</span>
+          <span id="status-aberto">Carregando horários...</span>
         </span>
       </div>
 
@@ -54,7 +54,7 @@
 
       <div class="capa-acoes revela atraso-28">
         <a class="botao botao-ouro" href="#agendar">
-          <span>Marcar meu horario</span>
+          <span>Marcar meu horário</span>
           <span class="seta" aria-hidden="true">&rarr;</span>
         </a>
         <a class="botao" id="capa-zap" href="#" target="_blank" rel="noopener">
@@ -79,9 +79,9 @@
       </div>
 
       <aside class="cartao-proximos revela atraso-44" id="cartao-proximos" hidden>
-        <p class="rotulo">Proximos horarios</p>
+        <p class="rotulo">Próximos horários</p>
         <div class="proximos-lista" id="proximos-lista"></div>
-        <p class="proximos-nota">Toque num horario para comecar por esse dia.</p>
+        <p class="proximos-nota">Toque num horário para começar por esse dia.</p>
       </aside>
 
     </div>
@@ -98,8 +98,8 @@
           <path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>
         </svg>
         <div>
-          <h3>Ele vai ate voce</h3>
-          <p id="destaque-domicilio">Atendimento a domicilio sem sair de casa.</p>
+          <h3>Ele vai até você</h3>
+          <p id="destaque-domicilio">Atendimento a domicílio sem sair de casa.</p>
         </div>
       </article>
 
@@ -108,8 +108,8 @@
           <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>
         </svg>
         <div>
-          <h3>Sem horario batido</h3>
-          <p>A agenda e a mesma pra todo mundo. O que voce marcar some na hora pros outros.</p>
+          <h3>Sem horário batido</h3>
+          <p>A agenda é a mesma pra todo mundo. O que você marcar some na hora pros outros.</p>
         </div>
       </article>
 
@@ -119,7 +119,7 @@
         </svg>
         <div>
           <h3>Confirma no zap</h3>
-          <p>Termina de marcar e o WhatsApp abre com tudo escrito. Voce so aperta enviar.</p>
+          <p>Termina de marcar e o WhatsApp abre com tudo escrito. Você só aperta enviar.</p>
         </div>
       </article>
 
@@ -135,7 +135,7 @@
     <div class="secao-topo revela">
       <span class="rotulo">Agendamento</span>
       <h2>Escolha, marque<br>e confirme.</h2>
-      <p>Leva menos de um minuto. O horario fica reservado no seu nome assim que voce confirmar.</p>
+      <p>Leva menos de um minuto. O horário fica reservado no seu nome assim que você confirmar.</p>
     </div>
 
     <ol class="trilha">
@@ -143,7 +143,7 @@
       <li class="passo ativo revela" id="passo-servico">
         <div class="passo-cabeca">
           <span class="passo-numero">1</span>
-          <h3>O servico</h3>
+          <h3>O serviço</h3>
           <span class="passo-dica" id="dica-servico"></span>
         </div>
         <div class="menu" id="lista-servicos"></div>
@@ -157,7 +157,7 @@
         <div class="locais" id="lista-local"></div>
 
         <label class="campo campo-regiao" id="campo-regiao-area" hidden>
-          <span>Qual regiao?</span>
+          <span>Qual região?</span>
           <select id="campo-regiao" name="regiao"></select>
           <small class="campo-nota" id="nota-regiao"></small>
         </label>
@@ -187,7 +187,7 @@
         <div class="passo-cabeca">
           <span class="passo-numero">5</span>
           <h3>Seus dados</h3>
-          <span class="passo-dica">So pra te achar</span>
+          <span class="passo-dica">Só pra te achar</span>
         </div>
 
         <form id="form-dados" novalidate>
@@ -199,7 +199,7 @@
                 <span>Repetir esse corte</span>
               </button>
               <button type="button" class="botao botao-pequeno" id="btn-esquecer">
-                <span>Nao sou eu</span>
+                <span>Não sou eu</span>
               </button>
             </div>
           </div>
@@ -216,19 +216,19 @@
             </label>
 
             <label class="campo campo-largo" id="campo-endereco-area" hidden>
-              <span>Endereco do atendimento</span>
-              <input type="text" id="campo-endereco" name="endereco" autocomplete="street-address" placeholder="Rua, numero, bairro e complemento" maxlength="200">
+              <span>Endereço do atendimento</span>
+              <input type="text" id="campo-endereco" name="endereco" autocomplete="street-address" placeholder="Rua, número, bairro e complemento" maxlength="200">
             </label>
 
             <label class="campo campo-largo">
-              <span>Observacao <em>(opcional)</em></span>
-              <input type="text" id="campo-obs" name="observacao" placeholder="Ex: maquina 2 dos lados" maxlength="300">
+              <span>Observação <em>(opcional)</em></span>
+              <input type="text" id="campo-obs" name="observacao" placeholder="Ex: máquina 2 dos lados" maxlength="300">
             </label>
           </div>
 
           <div class="codigo-caixa" id="recuperar-caixa" hidden>
             <p class="campo-nota" id="recuperar-texto">
-              Ja cortou aqui? Da pra puxar seus dados do ultimo corte.
+              Já cortou aqui? Dá pra puxar seus dados do último corte.
             </p>
             <button type="button" class="botao botao-pequeno" id="btn-pedir-codigo">
               <span>Recuperar meus dados</span>
@@ -237,15 +237,15 @@
             <div id="codigo-passo" hidden>
               <p class="campo-nota" id="codigo-aviso"></p>
               <div class="codigo-campos" id="codigo-campos">
-                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 1">
-                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 2">
-                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 3">
-                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 4">
-                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 5">
-                <input type="text" inputmode="numeric" maxlength="1" aria-label="Digito 6">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 1">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 2">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 3">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 4">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 5">
+                <input type="text" inputmode="numeric" maxlength="1" aria-label="Dígito 6">
               </div>
               <button type="button" class="botao botao-ouro botao-pequeno" id="btn-confirmar-codigo">
-                <span>Confirmar codigo</span>
+                <span>Confirmar código</span>
               </button>
             </div>
 
@@ -261,7 +261,7 @@
             <span class="seta" aria-hidden="true">&rarr;</span>
           </button>
 
-          <p class="sob-botao">Voce ainda vai poder conversar com o barbeiro antes de fechar.</p>
+          <p class="sob-botao">Você ainda vai poder conversar com o barbeiro antes de fechar.</p>
         </form>
       </li>
 
@@ -275,11 +275,11 @@
   <div class="envelope">
     <span class="rotulo">Minha reserva</span>
     <h2>Consultar, cancelar ou remarcar</h2>
-    <p class="campo-nota">Use o codigo que apareceu quando voce reservou e o mesmo telefone.</p>
+    <p class="campo-nota">Use o código que apareceu quando você reservou e o mesmo telefone.</p>
 
     <div class="campos">
       <label class="campo campo-largo">
-        <span>Codigo da reserva</span>
+        <span>Código da reserva</span>
         <input type="text" id="minha-codigo" autocomplete="off" spellcheck="false" maxlength="100">
       </label>
       <label class="campo">
@@ -291,7 +291,7 @@
         <input type="date" id="minha-data">
       </label>
       <label class="campo">
-        <span>Novo horario <em>(para remarcar)</em></span>
+        <span>Novo horário <em>(para remarcar)</em></span>
         <input type="time" id="minha-hora" step="1800">
       </label>
     </div>
@@ -314,12 +314,12 @@
     <div class="domicilio revela">
       <div class="domicilio-grade">
         <div>
-          <span class="rotulo">A domicilio</span>
+          <span class="rotulo">A domicílio</span>
           <h2>O barbeiro<br>na sua sala.</h2>
           <p id="texto-domicilio">
-            Ele leva a maquina, a tesoura e a toalha. Voce escolhe "em casa" na hora de
-            marcar, poe o endereco e o resto e igual: mesmo horario reservado, mesma
-            agenda, sem risco de aparecer alguem em cima.
+            Ele leva a máquina, a tesoura e a toalha. Você escolhe "em casa" na hora de
+            marcar, põe o endereço e o resto é igual: mesmo horário reservado, mesma
+            agenda, sem risco de aparecer alguém em cima.
           </p>
         </div>
         <div class="domicilio-preco">
@@ -355,7 +355,7 @@
     </div>
 
     <div class="rodape-fim">
-      <span id="rodape-horario">Todos os dias, das 08h as 20h</span>
+      <span id="rodape-horario">Todos os dias, das 08h às 20h</span>
     </div>
   </div>
 </footer>
@@ -382,8 +382,8 @@
       </svg>
     </div>
 
-    <h2>Horario reservado</h2>
-    <p class="recibo-sub">Guardamos no seu nome. Agora e so confirmar com o barbeiro.</p>
+    <h2>Horário reservado</h2>
+    <p class="recibo-sub">Guardamos no seu nome. Agora é só confirmar com o barbeiro.</p>
 
     <div class="recibo-dados" id="sucesso-detalhe"></div>
 
@@ -393,10 +393,10 @@
     </a>
 
     <button class="botao botao-largo" type="button" id="botao-novo">
-      <span>Marcar outro horario</span>
+      <span>Marcar outro horário</span>
     </button>
 
-    <p class="recibo-nota">Se o WhatsApp nao abrir sozinho, toque no botao verde.</p>
+    <p class="recibo-nota">Se o WhatsApp não abrir sozinho, toque no botão verde.</p>
   </div>
 </div>
 

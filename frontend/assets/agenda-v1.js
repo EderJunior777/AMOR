@@ -22,12 +22,12 @@
   "use strict";
 
   var MENSAGENS = {
-    conflito: "Esse horario acabou de ser ocupado. Escolha outro.",
+    conflito: "Esse horário acabou de ser ocupado. Escolha outro.",
     espera: "Muita gente agendando agora. Tente de novo em instantes.",
-    rede: "Nao consegui falar com a agenda. Confira a internet e tente de novo.",
-    erro: "Nao consegui concluir agora. Tente de novo em instantes.",
+    rede: "Não consegui falar com a agenda. Confira a internet e tente de novo.",
+    erro: "Não consegui concluir agora. Tente de novo em instantes.",
     recusa: "Confira os dados e tente de novo.",
-    semProfissional: "Este servico nao esta disponivel agora."
+    semProfissional: "Este serviço não está disponível agora."
   };
 
   var ESPERA_ANTES_DE_REENVIAR_MS = 800;

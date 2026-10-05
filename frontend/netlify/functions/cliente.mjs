@@ -153,7 +153,7 @@ async function pedirCodigo(telefone) {
   // WhatsApp de alguem (e pra torrar a cota da Meta).
   const janela = (registro.pedidos || []).filter((t) => agora() - t < 60 * 60 * 1000);
   if (janela.length >= PEDIDOS_POR_HORA) {
-    return json({ erro: "Voce ja pediu o codigo varias vezes. Tente daqui a pouco." }, 429);
+    return json({ erro: "Você já pediu o código várias vezes. Tente daqui a pouco." }, 429);
   }
 
   const temHistorico = await clientes().get(chaveTelefone(telefone));
@@ -166,7 +166,7 @@ async function pedirCodigo(telefone) {
     try {
       await enviarCodigo(telefone, codigo);
     } catch (e) {
-      return json({ erro: "Nao consegui enviar o codigo agora.", detalhe: String(e.message) }, 502);
+      return json({ erro: "Não consegui enviar o código agora.", detalhe: String(e.message) }, 502);
     }
 
     await store.setJSON(k, {
@@ -187,21 +187,21 @@ async function confirmarCodigo(telefone, codigo) {
   const k = chaveTelefone(telefone);
   const registro = await store.get(k, { type: "json" }).catch(() => null);
 
-  if (!registro || !registro.hash) return json({ erro: "Peca um codigo novo." }, 400);
+  if (!registro || !registro.hash) return json({ erro: "Peça um código novo." }, 400);
   if (agora() > registro.expiraEm) {
     await store.delete(k);
-    return json({ erro: "Esse codigo expirou. Peca outro." }, 400);
+    return json({ erro: "Esse código expirou. Peça outro." }, 400);
   }
 
   if ((registro.tentativas || 0) >= CODIGO_TENTATIVAS) {
     await store.delete(k);
-    return json({ erro: "Errou o codigo vezes demais. Peca um novo." }, 429);
+    return json({ erro: "Errou o código vezes demais. Peça um novo." }, 429);
   }
 
   if (!iguais(hashCodigo(codigo, telefone), registro.hash)) {
     registro.tentativas = (registro.tentativas || 0) + 1;
     await store.setJSON(k, registro);
-    return json({ erro: "Codigo errado." }, 401);
+    return json({ erro: "Código errado." }, 401);
   }
 
   await store.delete(k);
@@ -210,7 +210,7 @@ async function confirmarCodigo(telefone, codigo) {
   // historico daqui pra frente.
   const chave = randomBytes(24).toString("hex");
   const perfil = await clientes().get(chaveTelefone(telefone), { type: "json" }).catch(() => null);
-  if (!perfil) return json({ erro: "Nao achei seu historico." }, 404);
+  if (!perfil) return json({ erro: "Não achei seu histórico." }, 404);
 
   perfil.chaves = (perfil.chaves || [])
     .filter((c) => c.expiraEm > agora())
@@ -248,7 +248,7 @@ async function porChave(chave) {
   // Sem chave a rota so responde se o recurso esta ligado, pro site saber
   // se deve oferecer "recuperar meus dados".
   if (!chave) return json({ ok: true, ligado: true });
-  if (chave.length < 32) return json({ erro: "Chave invalida." }, 401);
+  if (chave.length < 32) return json({ erro: "Chave inválida." }, 401);
 
   const alvo = createHash("sha256").update(chave).digest("hex");
   const store = clientes();
@@ -262,7 +262,7 @@ async function porChave(chave) {
     if (valida) return json({ ok: true, cliente: recortarPerfil(perfil) });
   }
 
-  return json({ erro: "Chave invalida ou expirada." }, 401);
+  return json({ erro: "Chave inválida ou expirada." }, 401);
 }
 
 /* --------------------------------------------------------------- handler */
@@ -272,7 +272,7 @@ export default async (req) => {
 
   try {
     if (!verificacaoLigada()) {
-      return json({ erro: "DESLIGADO", mensagem: "A memoria do cliente ainda nao foi configurada." }, 503);
+      return json({ erro: "DESLIGADO", mensagem: "A memória do cliente ainda não foi configurada." }, 503);
     }
 
     if (req.method === "GET") {
@@ -281,23 +281,23 @@ export default async (req) => {
 
     if (req.method === "POST") {
       const corpo = await req.json().catch(() => null);
-      if (!corpo) return json({ erro: "Requisicao invalida." }, 400);
+      if (!corpo) return json({ erro: "Requisição inválida." }, 400);
 
       const telefone = normalizarTelefone(corpo.telefone);
-      if (telefone.length < 10) return json({ erro: "Telefone invalido." }, 400);
+      if (telefone.length < 10) return json({ erro: "Telefone inválido." }, 400);
 
       if (corpo.acao === "pedir-codigo") return await pedirCodigo(telefone);
 
       if (corpo.acao === "confirmar") {
         const codigo = String(corpo.codigo ?? "").replace(/\D/g, "");
-        if (codigo.length !== 6) return json({ erro: "O codigo tem 6 digitos." }, 400);
+        if (codigo.length !== 6) return json({ erro: "O código tem 6 dígitos." }, 400);
         return await confirmarCodigo(telefone, codigo);
       }
 
-      return json({ erro: "Acao desconhecida." }, 400);
+      return json({ erro: "Ação desconhecida." }, 400);
     }
 
-    return json({ erro: "Metodo nao suportado." }, 405);
+    return json({ erro: "Método não suportado." }, 405);
   } catch (e) {
     return json({ erro: "Erro no servidor.", detalhe: String(e && e.message) }, 500);
   }

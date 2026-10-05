@@ -23,7 +23,7 @@
   var agendaNova = nova && typeof window.AgendaV1 !== "undefined"
     ? window.AgendaV1.criar({ base: CONFIG.agendaNova.api || "/api/v1" })
     : null;
-  var ERRO_GENERICO = "Nao consegui concluir agora. Tente de novo em instantes.";
+  var ERRO_GENERICO = "Não consegui concluir agora. Tente de novo em instantes.";
 
   var estado = {
     servico: null,
@@ -74,7 +74,7 @@
     return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
   }
 
-  var SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  var SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
   function dataPorExtenso(iso) {
@@ -119,8 +119,8 @@
       // Agenda nova: nada de modo demonstracao (reserva so no aparelho).
       estado.offline = navigator.onLine === false;
       if (estado.offline) {
-        el("aviso-local").textContent = "Voce esta sem internet. Da pra ver os servicos e os precos, " +
-          "mas pra reservar um horario de verdade precisa de conexao.";
+        el("aviso-local").textContent = "Você está sem internet. Dá pra ver os serviços e os preços, " +
+          "mas pra reservar um horário de verdade precisa de conexão.";
         el("aviso-local").hidden = false;
       }
       atualizarBotaoConfirmar();
@@ -138,8 +138,8 @@
     if (!aviso) return;
 
     if (estado.offline) {
-      aviso.innerHTML = "<strong>Voce esta sem internet.</strong> Da pra ver os servicos e os " +
-        "precos, mas pra reservar um horario de verdade precisa de conexao.";
+      aviso.innerHTML = "<strong>Você está sem internet.</strong> Dá pra ver os serviços e os " +
+        "preços, mas pra reservar um horário de verdade precisa de conexão.";
     }
 
     aviso.hidden = false;
@@ -152,7 +152,7 @@
 
     botao.disabled = !!estado.offline || !!estado.semAgenda;
     botao.querySelector("span").textContent = estado.offline
-      ? "Sem internet - nao da pra reservar"
+      ? "Sem internet - não dá pra reservar"
       : estado.semAgenda ? "Agenda fora do ar - tente mais tarde"
       : "Confirmar e ir para o WhatsApp";
   }
@@ -330,7 +330,7 @@
       caixa.appendChild(botao);
     });
 
-    el("dica-servico").textContent = CONFIG.servicos.length + " servicos";
+    el("dica-servico").textContent = CONFIG.servicos.length + " serviços";
   }
 
   function desenharLocal() {
@@ -340,7 +340,7 @@
     var opcoes = [{
       id: "barbearia",
       nome: "Na barbearia",
-      info: CONFIG.endereco || "Voce vem ate o barbeiro",
+      info: CONFIG.endereco || "Você vem até o barbeiro",
       extra: 0
     }];
 
@@ -348,7 +348,7 @@
       opcoes.push({
         id: "domicilio",
         nome: "Em casa",
-        info: "O barbeiro vai ate voce",
+        info: "O barbeiro vai até você",
         extra: Number(CONFIG.taxaDomicilio || 0)
       });
     }
@@ -411,7 +411,7 @@
 
     var vazio = document.createElement("option");
     vazio.value = "";
-    vazio.textContent = "Escolha a regiao...";
+    vazio.textContent = "Escolha a região...";
     caixa.appendChild(vazio);
 
     regioes.forEach(function (regiao) {
@@ -441,7 +441,7 @@
     if (!nota) return;
 
     if (!estado.regiao) {
-      nota.textContent = "O tempo de deslocamento muda os horarios disponiveis.";
+      nota.textContent = "O tempo de deslocamento muda os horários disponíveis.";
       return;
     }
 
@@ -506,7 +506,7 @@
   // antecedencia, deslocamento e ocupacao). O id vem do catalogo da API.
   function horariosDaApi(iso, servico, local, regiao) {
     if (!servico || !servico.apiId) {
-      return Promise.reject({ mensagem: "A agenda esta fora do ar. Recarregue a pagina em instantes." });
+      return Promise.reject({ mensagem: "A agenda está fora do ar. Recarregue a página em instantes." });
     }
     return agendaNova.profissionalPara([servico.apiId]).then(function (profissional) {
       return agendaNova.horarios({
@@ -565,19 +565,19 @@
       Number(estado.servico.duracao), estado.dia, estado.ocupados, deslocamentoAtual()
     );
 
-    el("ajuda-hora").textContent = estado.servico.duracao + " min - ate as " + CONFIG.fechamento;
+    el("ajuda-hora").textContent = estado.servico.duracao + " min - até as " + CONFIG.fechamento;
     caixa.innerHTML = "";
 
     if (!livres.length) {
       caixa.innerHTML =
         '<div class="vazio"><strong>Esse dia lotou.</strong>' +
-        "Nao sobrou horario para " + escapar(estado.servico.nome) + ". Tente o dia seguinte.</div>";
+        "Não sobrou horário para " + escapar(estado.servico.nome) + ". Tente o dia seguinte.</div>";
       estadoDoPasso("passo-dados", false);
       return;
     }
 
     var faixas = [
-      { nome: "Manha", ate: 12 * 60 },
+      { nome: "Manhã", ate: 12 * 60 },
       { nome: "Tarde", ate: 18 * 60 },
       { nome: "Noite", ate: 24 * 60 }
     ];
@@ -642,17 +642,17 @@
       : null;
 
     var html = '<p class="comanda-titulo">Sua comanda</p>';
-    html += linhaComanda("Servico", estado.servico.nome + " (" + estado.servico.duracao + " min)");
+    html += linhaComanda("Serviço", estado.servico.nome + " (" + estado.servico.duracao + " min)");
     html += linhaComanda("Local", estado.local === "domicilio"
       ? "Na sua casa" + (estado.regiao ? " - " + estado.regiao.nome : "")
       : "Na barbearia");
     html += linhaComanda("Quando", estado.dia
-      ? dataPorExtenso(estado.dia) + (estado.hora ? ", " + estado.hora + " as " + fim : "")
+      ? dataPorExtenso(estado.dia) + (estado.hora ? ", " + estado.hora + " às " + fim : "")
       : "A escolher");
-    html += linhaComanda("Valor do servico", dinheiro(estado.servico.preco));
+    html += linhaComanda("Valor do serviço", dinheiro(estado.servico.preco));
 
     if (estado.local === "domicilio" && taxaAtual()) {
-      html += linhaComanda("Taxa de domicilio", dinheiro(taxaAtual()));
+      html += linhaComanda("Taxa de domicílio", dinheiro(taxaAtual()));
     }
 
     html += '<div class="comanda-picote"></div>';
@@ -707,10 +707,10 @@
     var duracao = dados.duracao || (estado.servico && estado.servico.duracao) || 0;
 
     var linhas = [
-      "Ola, " + CONFIG.barbeiro + "! Acabei de agendar pelo site:",
+      "Olá, " + CONFIG.barbeiro + "! Acabei de agendar pelo site:",
       "",
-      "Servico: " + dados.servico + " (" + duracao + " min)",
-      "Dia: " + dataPorExtenso(dados.dia) + " as " + dados.hora,
+      "Serviço: " + dados.servico + " (" + duracao + " min)",
+      "Dia: " + dataPorExtenso(dados.dia) + " às " + dados.hora,
       "Local: " + (dados.local === "domicilio"
         ? "na minha casa - " + dados.endereco +
           (dados.regiaoNome ? " (" + dados.regiaoNome + ")" : "")
@@ -723,7 +723,7 @@
 
     linhas.push("");
     linhas.push("Total: " + dinheiro(dados.total) +
-      (dados.local === "domicilio" ? " (ja com a taxa de domicilio)" : ""));
+      (dados.local === "domicilio" ? " (já com a taxa de domicílio)" : ""));
     linhas.push("Pode confirmar?");
 
     return "https://wa.me/" + String(CONFIG.whatsapp).replace(/\D/g, "") +
@@ -749,19 +749,19 @@
   function enviar(evento) {
     evento.preventDefault();
     if (estado.enviando) return;
-    if (estado.offline) return mostrarErro("Sem internet nao da pra garantir o horario. Tente de novo quando voltar.");
+    if (estado.offline) return mostrarErro("Sem internet não dá pra garantir o horário. Tente de novo quando voltar.");
 
     var nome = el("campo-nome").value.trim();
     var telefone = el("campo-telefone").value.trim();
     var endereco = el("campo-endereco").value.trim();
     var observacao = el("campo-obs").value.trim();
 
-    if (!estado.servico || !estado.dia || !estado.hora) return mostrarErro("Escolha o servico, o dia e o horario.");
+    if (!estado.servico || !estado.dia || !estado.hora) return mostrarErro("Escolha o serviço, o dia e o horário.");
     if (nome.length < 2) return mostrarErro("Escreva seu nome.");
     if (telefone.replace(/\D/g, "").length < 10) return mostrarErro("Escreva seu telefone com DDD.");
-    if (estado.local === "domicilio" && endereco.length < 5) return mostrarErro("Escreva o endereco do atendimento.");
+    if (estado.local === "domicilio" && endereco.length < 5) return mostrarErro("Escreva o endereço do atendimento.");
     if (estado.local === "domicilio" && (CONFIG.regioes || []).length && !estado.regiao)
-      return mostrarErro("Escolha a regiao do atendimento la no passo 2.");
+      return mostrarErro("Escolha a região do atendimento lá no passo 2.");
 
     mostrarErro("");
 
@@ -786,7 +786,7 @@
     estado.enviando = true;
     var botao = el("botao-confirmar");
     botao.disabled = true;
-    botao.querySelector("span").textContent = "Reservando seu horario...";
+    botao.querySelector("span").textContent = "Reservando seu horário...";
 
     reservar(dados)
       .then(function (resposta) {
@@ -797,7 +797,7 @@
         var corpo = (falha && falha.corpo) || {};
 
         if (falha && falha.status === 409) {
-          mostrarErro("Poxa, esse horario acabou de ser preenchido por outro cliente. Escolha outro.");
+          mostrarErro("Poxa, esse horário acabou de ser preenchido por outro cliente. Escolha outro.");
           estado.hora = null;
           estadoDoPasso("passo-dados", false);
           ativar("passo-hora");
@@ -805,7 +805,7 @@
           atualizarBarra();
           irPara("passo-hora");
         } else {
-          mostrarErro(corpo.erro || "Nao consegui reservar agora. Tente de novo em instantes.");
+          mostrarErro(corpo.erro || "Não consegui reservar agora. Tente de novo em instantes.");
         }
       })
       .then(function () {
@@ -818,11 +818,11 @@
   // tentativa fica em aberto e reenviar o MESMO pedido usa a mesma chave;
   // qualquer resposta da API encerra a tentativa.
   function enviarParaAgendaNova(form) {
-    if (!agendaNova || estado.semAgenda) return mostrarErro("A agenda esta fora do ar. Tente de novo em instantes.");
+    if (!agendaNova || estado.semAgenda) return mostrarErro("A agenda está fora do ar. Tente de novo em instantes.");
     estado.enviando = true;
     var botao = el("botao-confirmar");
     botao.disabled = true;
-    botao.querySelector("span").textContent = "Reservando seu horario...";
+    botao.querySelector("span").textContent = "Reservando seu horário...";
 
     var servico = estado.servico;
     agendaNova.profissionalPara([servico.apiId])
@@ -887,12 +887,12 @@
   }
 
   var ESTADOS_DA_RESERVA = {
-    solicitado: "Aguardando confirmacao do barbeiro",
+    solicitado: "Aguardando confirmação do barbeiro",
     confirmado: "Confirmada",
     em_atendimento: "Em atendimento",
-    concluido: "Concluida",
+    concluido: "Concluída",
     cancelado: "Cancelada",
-    nao_compareceu: "Nao compareceu"
+    nao_compareceu: "Não compareceu"
   };
 
   function linhasDaReserva(caixa, reserva) {
@@ -900,14 +900,14 @@
     var duracao = (reserva.servicos || []).reduce(function (t, s) { return t + Number(s.duracao_minutos); }, 0);
     var fim = paraHora(emMinutos(reserva.hora) + duracao);
 
-    caixa.appendChild(linhaDeRecibo("Servico", nomes));
-    caixa.appendChild(linhaDeRecibo("Quando", dataPorExtenso(reserva.data) + ", " + reserva.hora + " as " + fim));
+    caixa.appendChild(linhaDeRecibo("Serviço", nomes));
+    caixa.appendChild(linhaDeRecibo("Quando", dataPorExtenso(reserva.data) + ", " + reserva.hora + " às " + fim));
     caixa.appendChild(linhaDeRecibo("Local", reserva.modalidade === "domicilio"
       ? "Na sua casa" + (reserva.regiao_nome ? " - " + reserva.regiao_nome : "")
       : "Na barbearia"));
     caixa.appendChild(linhaDeRecibo("Total", dinheiro(Number(reserva.total_centavos) / 100)));
-    caixa.appendChild(linhaDeRecibo("Situacao", ESTADOS_DA_RESERVA[reserva.estado] || reserva.estado));
-    caixa.appendChild(linhaDeRecibo("Codigo da reserva", reserva.codigo));
+    caixa.appendChild(linhaDeRecibo("Situação", ESTADOS_DA_RESERVA[reserva.estado] || reserva.estado));
+    caixa.appendChild(linhaDeRecibo("Código da reserva", reserva.codigo));
     return { nomes: nomes, duracao: duracao };
   }
 
@@ -920,10 +920,10 @@
     var resumo = linhasDaReserva(caixa, reserva);
 
     var tela = el("tela-sucesso");
-    tela.querySelector("h2").textContent = "Pedido de horario enviado";
-    tela.querySelector(".recibo-sub").textContent = "O horario fica guardado no seu nome enquanto o barbeiro confirma.";
-    tela.querySelector(".recibo-nota").textContent = "Guarde o codigo da reserva: com ele e o mesmo telefone da pra " +
-      "consultar, cancelar ou remarcar em \"Minha reserva\", mais abaixo na pagina.";
+    tela.querySelector("h2").textContent = "Pedido de horário enviado";
+    tela.querySelector(".recibo-sub").textContent = "O horário fica guardado no seu nome enquanto o barbeiro confirma.";
+    tela.querySelector(".recibo-nota").textContent = "Guarde o código da reserva: com ele e o mesmo telefone dá pra " +
+      "consultar, cancelar ou remarcar em \"Minha reserva\", mais abaixo na página.";
 
     el("link-zap").href = montarMensagem({
       servico: resumo.nomes,
@@ -967,7 +967,7 @@
         var codigo = el("minha-codigo").value.trim();
         var telefone = el("minha-telefone").value.trim();
         if (!codigo || telefone.replace(/\D/g, "").length < 10) {
-          return avisar("Informe o codigo da reserva e o telefone com DDD.");
+          return avisar("Informe o código da reserva e o telefone com DDD.");
         }
         avisar("");
         botao.disabled = true;
@@ -993,7 +993,7 @@
     acao("btn-minha-remarcar", function (codigo, telefone) {
       var dia = el("minha-data").value;
       var hora = el("minha-hora").value;
-      if (!dia || !hora) throw { mensagem: "Escolha o novo dia e o novo horario." };
+      if (!dia || !hora) throw { mensagem: "Escolha o novo dia e o novo horário." };
       return agendaNova.remarcar(codigo, telefone, dia, hora).then(function (r) {
         return { reserva: r, aviso: "Reserva remarcada." };
       });
@@ -1013,9 +1013,9 @@
     var fim = paraHora(emMinutos(dados.hora) + Number(duracao));
 
     var html = "";
-    html += '<div class="recibo-linha"><span>Servico</span><span>' + escapar(dados.servico) + "</span></div>";
+    html += '<div class="recibo-linha"><span>Serviço</span><span>' + escapar(dados.servico) + "</span></div>";
     html += '<div class="recibo-linha"><span>Quando</span><span>' +
-            escapar(dataPorExtenso(dados.dia) + ", " + dados.hora + " as " + fim) + "</span></div>";
+            escapar(dataPorExtenso(dados.dia) + ", " + dados.hora + " às " + fim) + "</span></div>";
     html += '<div class="recibo-linha"><span>Local</span><span>' +
             escapar(dados.local === "domicilio" ? "Na sua casa" : "Na barbearia") + "</span></div>";
     html += '<div class="recibo-linha"><span>Total</span><span>' + escapar(dinheiro(dados.total)) + "</span></div>";
@@ -1078,8 +1078,8 @@
       : "faz " + Math.round(dias / 30) + " meses";
 
     el("memoria-texto").innerHTML =
-      escapar(cliente.nome ? cliente.nome.split(" ")[0] : "Voce") +
-      ", seu ultimo corte foi <b>" + escapar(ultimo.servico) + "</b>, " + escapar(quando) + ".";
+      escapar(cliente.nome ? cliente.nome.split(" ")[0] : "Você") +
+      ", seu último corte foi <b>" + escapar(ultimo.servico) + "</b>, " + escapar(quando) + ".";
 
     var servico = CONFIG.servicos.filter(function (s) { return s.id === ultimo.servicoId; })[0];
     el("btn-repetir-corte").hidden = !servico;
@@ -1164,12 +1164,12 @@
     })
       .then(function (r) { return r.json().then(function (c) { return { ok: r.ok, corpo: c }; }); })
       .then(function (res) {
-        if (!res.ok) return mostrarErroCodigo(res.corpo.erro || "Nao consegui enviar agora.");
+        if (!res.ok) return mostrarErroCodigo(res.corpo.erro || "Não consegui enviar agora.");
         el("codigo-passo").hidden = false;
-        el("codigo-aviso").textContent = res.corpo.mensagem || "Codigo enviado.";
+        el("codigo-aviso").textContent = res.corpo.mensagem || "Código enviado.";
         el("codigo-campos").children[0].focus();
       })
-      .catch(function () { mostrarErroCodigo("Nao consegui falar com o servidor."); })
+      .catch(function () { mostrarErroCodigo("Não consegui falar com o servidor."); })
       .then(function () {
         botao.disabled = false;
         botao.querySelector("span").textContent = "Enviar de novo";
@@ -1178,7 +1178,7 @@
 
   function confirmarCodigo() {
     var codigo = lerCodigoDigitado();
-    if (codigo.length !== 6) return mostrarErroCodigo("Digite os seis numeros.");
+    if (codigo.length !== 6) return mostrarErroCodigo("Digite os seis números.");
 
     mostrarErroCodigo("");
     var botao = el("btn-confirmar-codigo");
@@ -1195,12 +1195,12 @@
     })
       .then(function (r) { return r.json().then(function (c) { return { ok: r.ok, corpo: c }; }); })
       .then(function (res) {
-        if (!res.ok) return mostrarErroCodigo(res.corpo.erro || "Codigo errado.");
+        if (!res.ok) return mostrarErroCodigo(res.corpo.erro || "Código errado.");
         gravarChave(res.corpo.chave);
         el("codigo-passo").hidden = true;
         aplicarCliente(res.corpo.cliente);
       })
-      .catch(function () { mostrarErroCodigo("Nao consegui falar com o servidor."); })
+      .catch(function () { mostrarErroCodigo("Não consegui falar com o servidor."); })
       .then(function () { botao.disabled = false; });
   }
 
@@ -1275,8 +1275,8 @@
 
     el("status-ponto").classList.toggle("fechado", !aberto);
     el("status-aberto").innerHTML = aberto
-      ? "<b>Aberto agora</b> &middot; fecha as " + CONFIG.fechamento
-      : "<b>Fechado</b> &middot; abre as " + CONFIG.abertura;
+      ? "<b>Aberto agora</b> &middot; fecha às " + CONFIG.fechamento
+      : "<b>Fechado</b> &middot; abre às " + CONFIG.abertura;
   }
 
   // Quantos horarios ainda cabem hoje, de verdade, vindo da agenda.
@@ -1302,7 +1302,7 @@
       var iso = paraISO(amanha);
       buscarOcupados(iso).then(function (ocupadosAmanha) {
         el("dado-livres").textContent = horariosLivres(menor, iso, ocupadosAmanha).length;
-        el("dado-livres-rotulo").textContent = "Livres amanha";
+        el("dado-livres-rotulo").textContent = "Livres amanhã";
       });
     });
   }
@@ -1329,7 +1329,7 @@
       }
       return horariosDaCapa(paraISO(amanha)).then(function (deAmanha) {
         el("dado-livres").textContent = deAmanha.length;
-        el("dado-livres-rotulo").textContent = "Livres amanha";
+        el("dado-livres-rotulo").textContent = "Livres amanhã";
       });
     });
   }
@@ -1458,7 +1458,7 @@
 
     el("rodape-horario").textContent =
       ((CONFIG.diasFechados || []).length ? "Consulte os dias" : "Todos os dias") +
-      ", das " + CONFIG.abertura + " as " + CONFIG.fechamento;
+      ", das " + CONFIG.abertura + " às " + CONFIG.fechamento;
 
     if (CONFIG.instagram) {
       var insta = el("rodape-insta");
@@ -1470,9 +1470,9 @@
     if (CONFIG.domicilioAtivo) {
       el("valor-domicilio").textContent = "+ " + dinheiro(CONFIG.taxaDomicilio);
       el("destaque-domicilio").textContent =
-        "Atendimento a domicilio por " + dinheiro(CONFIG.taxaDomicilio) + " a mais. Ele leva tudo.";
+        "Atendimento a domicílio por " + dinheiro(CONFIG.taxaDomicilio) + " a mais. Ele leva tudo.";
     } else {
-      el("dado-domicilio").textContent = "Nao";
+      el("dado-domicilio").textContent = "Não";
       el("domicilio-secao").hidden = true;
       el("destaque-domicilio").textContent = "Atendimento na barbearia.";
     }
@@ -1512,7 +1512,7 @@
       preencherTextos();
       montarTela();
       ligarMinhaReserva();
-      el("aviso-local").textContent = "A agenda nao respondeu agora. Tente de novo em instantes.";
+      el("aviso-local").textContent = "A agenda não respondeu agora. Tente de novo em instantes.";
       el("aviso-local").hidden = false;
       atualizarBotaoConfirmar();
     });
