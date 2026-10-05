@@ -8,6 +8,40 @@
 [functions]
   node_bundler = "esbuild"
 
+# "publish = ." publica a pasta inteira como arquivos estaticos. O que nao e
+# do site (testes, codigo das funcoes, package*.json, README) responde 404.
+# As funcoes em si continuam funcionando: rodam em /api/* e nao dependem
+# destes caminhos estaticos.
+[[redirects]]
+  from = "/testes/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/netlify/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/package.json"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/package-lock.json"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/README.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
 [[headers]]
   for = "/agenda.html"
   [headers.values]
