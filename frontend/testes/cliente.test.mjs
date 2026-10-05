@@ -95,7 +95,7 @@ const r2 = await chamar("POST", "", { acao: "pedir-codigo", telefone: TEL_ESTRAN
 ok(r2.status === 200, "responde 200 igualzinho", r2);
 ok(enviados.length === antes, "mas nao envia mensagem nenhuma", enviados.length - antes);
 ok(JSON.stringify(r2.corpo) === JSON.stringify({
-  ok: true, mensagem: "Se esse numero ja cortou aqui, o codigo chegou no WhatsApp."
+  ok: true, mensagem: "Se esse número já cortou aqui, o código chegou no WhatsApp."
 }), "resposta identica a de um cliente real (nao da pra descobrir quem e cliente)", r2.corpo);
 
 console.log("\n--- Codigo errado ---");

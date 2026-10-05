@@ -104,6 +104,37 @@ muitos clientes no mesmo Wi-Fi.
 | `netlify/functions/` | Agenda de hoje (Blobs), **não alterada**. |
 | `testes/servidor-homologacao.mjs` | Servidor de homologação da agenda nova (só em 127.0.0.1, só os arquivos do site). |
 
+## Checklist do primeiro deploy
+
+Faça uma vez, no primeiro deploy desta versão (e sempre que trocar de site na
+Netlify). Nada disso dá para provar localmente: só a Netlify aplica
+`netlify.toml`.
+
+1. **`PIN_PAINEL` definida** (Site settings → Environment variables), com um
+   PIN que **não** seja o de desenvolvimento. Ela é **obrigatória**: sem ela o
+   painel (`agenda.html`) responde 503 "Painel não configurado" e o barbeiro
+   não entra. Não existe PIN padrão em produção (o `1234` só existe em
+   `testes/servidor-local.mjs`, que não é uma função da Netlify).
+   Confira: abrir `/agenda.html`, entrar com o PIN e ver o dia.
+2. **Os 404** (`netlify.toml`): `publish = "."` publica a pasta inteira, e os
+   redirects forçados escondem o que não é do site. Cada um deve dar **404**:
+   - `/testes/servidor-local.mjs`
+   - `/netlify/functions/agenda.mjs`
+   - `/package.json` e `/package-lock.json`
+   - `/README.md`
+
+   E o site e as funções **devem continuar funcionando**: `/` abre,
+   `/api/agenda?dia=AAAA-MM-DD` responde 200 e a reserva de teste fecha.
+3. **Cabeçalhos** (`curl -I https://SEU-SITE/`): `Content-Security-Policy`,
+   `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` e
+   `Strict-Transport-Security`. Abrir o site e conferir que o console do
+   navegador não mostra nenhum erro de CSP.
+4. **Service worker**: abrir uma vez, recarregar, e conferir que o registro
+   aparece (DevTools → Application) com a versão nova.
+
+Se o item 2 falhar (algum arquivo abre), **não deixe no ar**: o painel e as
+funções não devem ser lidos como arquivo estático.
+
 ## Pendente para publicar (etapa 6)
 
 - Redirect `/api/v1/*` → backend no `netlify.toml` (proxy, status 200), com

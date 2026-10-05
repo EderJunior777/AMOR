@@ -126,7 +126,7 @@ ok(r.status === 400, "servico que nao existe no config e recusado", r);
 
 console.log("\n--- Atendimento a domicilio ---");
 r = await chamar("POST", "", { ...CORTE, hora: "17:00", local: "domicilio", endereco: "", regiao: "centro" });
-ok(r.status === 400 && /endereco/i.test(r.corpo.erro), "domicilio sem endereco barrado", r);
+ok(r.status === 400 && /endereço/i.test(r.corpo.erro), "domicilio sem endereco barrado", r);
 
 r = await chamar("POST", "", { ...CORTE, hora: "17:00", local: "domicilio", endereco: "Rua das Flores, 123 - Centro", regiao: "centro" });
 ok(r.status === 201 && r.corpo.reserva.total === 40 + CONFIG.taxaDomicilio,
@@ -200,7 +200,7 @@ console.log("\n--- Deslocamento do domicilio sai da agenda ---");
     ...CORTE, dia: DIA5, hora: "10:00", local: "domicilio",
     endereco: "Rua Teste, 10", nome: "Vitor Nunes"
   });
-  ok(r2.status === 400 && /regiao/i.test(r2.corpo.erro), "domicilio sem regiao barrado", r2);
+  ok(r2.status === 400 && /região/i.test(r2.corpo.erro), "domicilio sem regiao barrado", r2);
 
   r2 = await chamar("POST", "", {
     ...CORTE, dia: DIA5, hora: "10:00", local: "domicilio",
@@ -262,7 +262,7 @@ console.log("--- Virada do dia no fuso de Sao Paulo ---");
   // 09/10 virou passado; 10/10 as 08:00 e futuro.
   fixarRelogio("2026-10-10T00:01:00-03:00");
   r2 = await chamar("POST", "", { ...CORTE, dia: "2026-10-09", hora: "19:30", nome: "Ontem Silva" });
-  ok(r2.status === 400 && /ja passou/i.test(r2.corpo.erro), "depois da meia-noite, 09/10 e dia que ja passou", r2);
+  ok(r2.status === 400 && /já passou/i.test(r2.corpo.erro), "depois da meia-noite, 09/10 e dia que ja passou", r2);
 
   r2 = await chamar("POST", "", { ...CORTE, dia: "2026-10-10", hora: "08:00", nome: "Madrugador Silva" });
   ok(r2.status === 201, "depois da meia-noite, 10/10 08:00 e aceito", r2);

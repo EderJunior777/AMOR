@@ -146,7 +146,7 @@ function validarReserva(corpo) {
   if ((inicio - abre) % PASSO !== 0) return { erro: `Horário fora da grade de ${PASSO} minutos.` };
 
   const hoje = hojeISO();
-  if (dia < hoje) return { erro: "Nao da pra marcar em um dia que ja passou." };
+  if (dia < hoje) return { erro: "Não dá pra marcar em um dia que já passou." };
 
   // Uma pagina aberta de manha nao pode marcar as 09:00 quando ja sao 18:00.
   if (dia === hoje && inicio < agoraEmMinutos() + (Number(CONFIG.antecedenciaMinutos) || 0))
@@ -166,14 +166,14 @@ function validarReserva(corpo) {
   const local = querDomicilio ? "domicilio" : "barbearia";
   const endereco = limpar(corpo.endereco, 200);
   if (local === "domicilio" && endereco.length < 5)
-    return { erro: "Para atendimento em casa, informe o endereco." };
+    return { erro: "Para atendimento em casa, informe o endereço." };
 
   // A regiao decide quanto tempo de deslocamento sai da agenda, entao ela
   // e obrigatoria no domicilio e vem sempre do config - nunca do cliente.
   let regiao = null;
   if (local === "domicilio" && (CONFIG.regioes || []).length) {
     regiao = CONFIG.regioes.find((r) => r.id === limpar(corpo.regiao, 40));
-    if (!regiao) return { erro: "Escolha a regiao do atendimento." };
+    if (!regiao) return { erro: "Escolha a região do atendimento." };
   }
 
   const deslocamento = regiao ? Number(regiao.deslocamento) || 0 : 0;

@@ -179,7 +179,7 @@ async function pedirCodigo(telefone) {
     await store.setJSON(k, { pedidos: janela.concat(agora()) });
   }
 
-  return json({ ok: true, mensagem: "Se esse numero ja cortou aqui, o codigo chegou no WhatsApp." });
+  return json({ ok: true, mensagem: "Se esse número já cortou aqui, o código chegou no WhatsApp." });
 }
 
 async function confirmarCodigo(telefone, codigo) {
