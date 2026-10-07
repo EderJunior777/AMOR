@@ -28,12 +28,14 @@ const cache = {
   match: () => Promise.resolve(undefined)
 };
 
+const abertos = [];       // nomes de cache que o sw abriu (a VERSAO)
+
 const contexto = {
   URL,
   Promise,
   console,
   caches: {
-    open: () => Promise.resolve(cache),
+    open: (nome) => { abertos.push(nome); return Promise.resolve(cache); },
     keys: () => Promise.resolve([]),
     delete: () => Promise.resolve(true),
     match: () => Promise.resolve(undefined)
@@ -71,6 +73,9 @@ await espera;
 ok(guardados.length > 0, "o sw guarda os arquivos essenciais", guardados);
 ok(guardados.every((u) => !/\/api\//.test(u)), "nada de /api/ entre os essenciais", guardados);
 ok(guardados.includes("./assets/agenda-v1.js"), "o cliente da agenda nova entra nos essenciais");
+ok(guardados.includes("./404.html"), "a pagina 404 entra nos essenciais", guardados);
+ok(abertos.length > 0 && abertos.every((n) => n === "barbearia-v3"),
+   "o cache usa a versao barbearia-v3", abertos);
 
 secao("/api/* passa direto, sem cache");
 guardados.length = 0;

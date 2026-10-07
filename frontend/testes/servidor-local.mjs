@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { BlobsServer } from "@netlify/blobs/server";
 
 // fileURLToPath (e nao .pathname) para funcionar no Windows: .pathname
-// devolve "/C:/Users/..." e o join depois monta um caminho invalido.
+// devolve "/C:/pasta/..." (com a letra do disco) e o join depois monta um caminho invalido.
 const RAIZ = fileURLToPath(new URL("..", import.meta.url));
 const PORTA = Number(process.env.PORT) || 8888;
 
@@ -43,6 +43,13 @@ process.env.NETLIFY_BLOBS_CONTEXT = Buffer.from(JSON.stringify({
   siteID: "site-local",
   primaryRegion: "us-east-1"
 })).toString("base64");
+
+// SO DESENVOLVIMENTO (este arquivo nao e uma funcao da Netlify): sem
+// PIN_PAINEL a funcao recusa o painel, entao o servidor local usa 1234.
+// Em producao a variavel e obrigatoria e nao existe PIN padrao.
+const PIN_DE_DESENVOLVIMENTO = "1234";
+const usaPinPadrao = !process.env.PIN_PAINEL;
+if (usaPinPadrao) process.env.PIN_PAINEL = PIN_DE_DESENVOLVIMENTO;
 
 const { default: agenda } = await import("../netlify/functions/agenda.mjs");
 const { default: cliente } = await import("../netlify/functions/cliente.mjs");
@@ -87,7 +94,10 @@ const servidor = createServer(async (req, res) => {
   }
 });
 
-servidor.listen(PORTA, () => {
+// So 127.0.0.1: o servidor de desenvolvimento nao fica visivel na rede.
+servidor.listen(PORTA, "127.0.0.1", () => {
   console.log(`\n  Site:   http://localhost:${PORTA}`);
-  console.log(`  Agenda: http://localhost:${PORTA}/agenda.html  (PIN 1234)\n`);
+  console.log(`  Agenda: http://localhost:${PORTA}/agenda.html  (${usaPinPadrao
+    ? "PIN de desenvolvimento " + PIN_DE_DESENVOLVIMENTO
+    : "PIN vindo de PIN_PAINEL"})\n`);
 });

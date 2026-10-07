@@ -981,7 +981,7 @@ a { color: inherit; text-decoration: none; }
 
 .campo input::placeholder { color: #55524D; }
 .campo input:hover { border-color: var(--fio-forte); }
-.campo input:focus { outline: none; border-color: var(--fio-ouro); background: #0B0B0E; }
+.campo input:focus { border-color: var(--fio-ouro); background: #0B0B0E; }
 
 /* ---------------------------------------------------- select e notas */
 
@@ -1003,7 +1003,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 .campo select:hover { border-color: var(--fio-forte); }
-.campo select:focus { outline: none; border-color: var(--fio-ouro); }
+.campo select:focus { border-color: var(--fio-ouro); }
 .campo select option { background: var(--elevado); color: var(--osso); }
 
 .campo-regiao { margin-top: 1rem; }
@@ -1039,7 +1039,7 @@ a { color: inherit; text-decoration: none; }
 
 .memoria-acoes { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
 
-.botao-pequeno { padding: .55rem 1.1rem; font-size: .84rem; }
+.botao-pequeno { padding: .55rem 1.1rem; font-size: .84rem; min-height: 44px; }
 
 .etiqueta-ouro { border-color: var(--fio-ouro); color: var(--ouro); }
 
@@ -1067,7 +1067,7 @@ a { color: inherit; text-decoration: none; }
   font-variant-numeric: tabular-nums;
 }
 
-.codigo-campos input:focus { outline: none; border-color: var(--fio-ouro); }
+.codigo-campos input:focus { border-color: var(--fio-ouro); }
 
 /* -------------------------------------------------------------- comanda */
 /* O resumo desenhado como a comanda da barbearia, com picote embaixo. */
@@ -1340,6 +1340,7 @@ a { color: inherit; text-decoration: none; }
   top: 0;
   left: 1.6rem;
   right: 1.6rem;
+  width: auto;   /* .poste-fino traz width:100%, que somado ao left estourava a tela em 1.6rem */
   height: 3px;
 }
 
@@ -1535,7 +1536,7 @@ a { color: inherit; text-decoration: none; }
   margin-top: .9rem;
 }
 
-.acoes .botao { padding: .55rem .6rem; font-size: .78rem; white-space: nowrap; }
+.acoes .botao { padding: .55rem .6rem; font-size: .78rem; white-space: nowrap; min-height: 44px; }
 
 @media (min-width: 620px) {
   .acoes { display: flex; flex-wrap: wrap; }
@@ -1553,3 +1554,81 @@ a { color: inherit; text-decoration: none; }
   }
   .revela { opacity: 1; transform: none; }
 }
+
+/* ---- classes que substituem style="..." (CSP sem 'unsafe-inline') ---- */
+.atraso-5  { --atraso: .05s; }
+.atraso-8  { --atraso: .08s; }
+.atraso-12 { --atraso: .12s; }
+.atraso-16 { --atraso: .16s; }
+.atraso-20 { --atraso: .2s; }
+.atraso-28 { --atraso: .28s; }
+.atraso-36 { --atraso: .36s; }
+.atraso-44 { --atraso: .44s; }
+.secao-sem-topo { padding-top: 0; }
+.espaco-botao-entrar { margin-top: 1.1rem; }
+.espaco-botao-confirmar { margin-top: 1.3rem; }
+.poste.poste-curto { max-width: 120px; margin: .8rem 0 1rem; }
+.esqueleto.esqueleto-alto { height: 6rem; }
+.rodape-painel { margin-top: 2rem; text-align: center; }
+.rodape-painel a { color: var(--fumaca); font-size: .85rem; }
+
+/* ---- agenda nova: código da reserva e "Minha reserva" ------------------- */
+
+/* Código grande, em fonte mono, que quebra em qualquer ponto (cabe no celular
+   mesmo com 40+ caracteres) e seleciona inteiro com um toque. */
+.codigo-reserva {
+  display: grid;
+  gap: .55rem;
+  justify-items: start;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px dashed var(--fio-ouro);
+  border-radius: 12px;
+  text-align: left;
+}
+.codigo-reserva-rotulo { font-size: .78rem; color: var(--fumaca); letter-spacing: .06em; text-transform: uppercase; }
+.codigo-reserva-valor {
+  display: block;
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 1.25rem;
+  line-height: 1.35;
+  color: var(--osso);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  user-select: all;
+  -webkit-user-select: all;
+}
+.codigo-reserva-aviso { min-height: 1.2em; font-size: .85rem; color: var(--ouro); }
+
+.minha-remarcar { margin-top: 1.5rem; }
+.minha-remarcar h3 { margin-bottom: .3rem; }
+#btn-novo-horario { margin-top: 1rem; }
+#btn-minha-confirmar-remarcar { margin-top: 1rem; }
+
+/* ---- celular e acessibilidade (fase 4) ---------------------------------- */
+
+/* Foco dos campos: anel visível além da troca de borda (a borda sozinha some
+   para quem enxerga pouco; o outline também sobrevive ao modo de alto contraste). */
+.campo input:focus-visible,
+.campo select:focus-visible,
+.codigo-campos input:focus-visible {
+  outline: 2px solid var(--ouro);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px rgba(216, 172, 94, .22);
+}
+
+/* Áreas de toque de pelo menos 44px (dedo no celular). */
+.hora, .dia, .proximo, .local, .item { min-height: 44px; }
+.hora, .dia, .seta-dia { min-width: 44px; }
+.rodape a,
+.rodape-painel a { display: inline-flex; align-items: center; min-height: 44px; }
+.rodape-painel a { padding: 0 .5rem; }
+
+/* O título da janela de sucesso recebe o foco ao abrir (para o leitor de tela
+   anunciar a janela), mas não é um controle: sem anel nele. */
+.recibo h2:focus { outline: none; }
+
+/* ---- página 404 ---------------------------------------------------------- */
+
+.pagina-404 p { color: var(--fumaca); margin-bottom: 1.6rem; max-width: 36rem; }

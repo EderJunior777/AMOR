@@ -21,8 +21,8 @@ const ok = (cond, nome, extra) => {
 };
 const secao = (titulo) => console.log("\n--- " + titulo + " ---");
 
-function resposta(status, corpo) {
-  return { ok: status >= 200 && status < 300, status, json: () => Promise.resolve(corpo) };
+function resposta(status, corpo, cabecalhos) {
+  return { ok: status >= 200 && status < 300, status, json: () => Promise.resolve(corpo), headers: new Headers(cabecalhos || {}) };
 }
 
 // fetch falso: devolve as respostas em ordem e guarda cada chamada.
@@ -156,6 +156,105 @@ secao("Catalogo e horarios");
   const { api } = redeFalsa([resposta(200, { profissionais: [] })]);
   const f = await falhaDe(api.profissionalPara([7]));
   ok(f && f.tipo === "recusa" && f.mensagem === M.semProfissional, "servico sem profissional: recusa clara", f);
+}
+
+secao("Espera longa (Retry-After): limite por hora da API");
+{
+  const f = (status, cab) => AgendaV1.interpretar(status, { codigo: "muitas_tentativas" }, new Headers(cab || {}));
+  const longa = f(429, { "retry-after": "982" });
+  ok(longa.tipo === "espera" && longa.esperaSegundos === 982 && /17 minutos/.test(longa.mensagem),
+    "429 com Retry-After de ~16 min diz \"cerca de 17 minutos\" (nao \"instantes\")", longa);
+  ok(/2 minutos/.test(f(503, { "retry-after": "120" }).mensagem), "503 com 120 s: \"cerca de 2 minutos\"");
+  ok(f(429, { "retry-after": "5" }).mensagem === M.espera && f(429, { "retry-after": "119" }).mensagem === M.espera,
+    "espera curta (< 2 min) mantem \"tente de novo em instantes\"");
+  ok(f(429).mensagem === M.espera && f(429).esperaSegundos === null, "sem Retry-After: texto de sempre");
+  ok(f(429, { "retry-after": "abc" }).mensagem === M.espera && f(429, { "retry-after": "-3" }).mensagem === M.espera,
+    "Retry-After invalido: texto de sempre");
+  ok(AgendaV1.interpretar(429, {}).mensagem === M.espera, "chamada antiga sem cabecalhos continua valendo");
+  ok(AgendaV1.respostaDefinitiva(longa), "espera segue sendo resposta definitiva (chave nova no proximo envio)");
+
+  // ponta a ponta: o 429 vindo da rede chega com o tempo
+  const { api } = redeFalsa([resposta(429, { codigo: "muitas_tentativas" }, { "retry-after": "982" })]);
+  const erro = await falhaDe(api.consultar("COD", "11900000000"));
+  ok(erro && erro.tipo === "espera" && /17 minutos/.test(erro.mensagem), "consultar com 429 de 982 s mostra o tempo de espera", erro);
+}
+
+secao("Estados da reserva");
+const SEIS = ["solicitado", "confirmado", "em_atendimento", "concluido", "cancelado", "nao_compareceu"];
+ok(JSON.stringify(Object.keys(AgendaV1.ESTADOS_DA_RESERVA).sort()) === JSON.stringify([...SEIS].sort()),
+  "o mapa cobre exatamente os 6 estados do backend");
+ok(SEIS.every((e) => AgendaV1.rotuloDoEstado(e) !== AgendaV1.ESTADO_DESCONHECIDO && AgendaV1.rotuloDoEstado(e) !== e),
+  "cada estado conhecido tem um rotulo legivel (nunca o valor cru)");
+ok(AgendaV1.rotuloDoEstado("solicitado") === "Aguardando confirmação do barbeiro", "solicitado: aguardando o barbeiro");
+for (const estranho of ["expirado", "recusado", "EM_ANALISE", "", null, undefined, 42, {}, "constructor", "__proto__", "toString"]) {
+  ok(AgendaV1.rotuloDoEstado(estranho) === "Em análise", "estado desconhecido vira \"Em análise\": " + JSON.stringify(estranho));
+}
+{
+  // Se o backend ganhar ou perder um estado, este teste acusa (so roda com a pasta backend ao lado).
+  const enumPhp = new URL("../../backend/app/Enums/EstadoAgendamento.php", import.meta.url);
+  let fonte = null;
+  try { fonte = readFileSync(enumPhp, "utf8"); } catch { /* deploy sem backend: pula */ }
+  if (fonte) {
+    const doBackend = [...fonte.matchAll(/case \w+ = '(\w+)';/g)].map((m) => m[1]).sort();
+    ok(JSON.stringify(doBackend) === JSON.stringify([...SEIS].sort()), "mesmos estados do enum do backend", doBackend);
+  } else {
+    console.log("  (enum do backend ausente: comparacao pulada)");
+  }
+}
+ok(["cancelado", "nao_compareceu"].every(AgendaV1.ofereceNovoHorario), "cancelado e nao compareceu: oferece \"Marcar novo horário\"");
+ok(["solicitado", "confirmado", "em_atendimento", "concluido", "expirado", "recusado", null].every((e) => !AgendaV1.ofereceNovoHorario(e)),
+  "os demais estados nao oferecem novo horario");
+ok(AgendaV1.podeRemarcar("solicitado") && SEIS.filter((e) => e !== "solicitado").every((e) => !AgendaV1.podeRemarcar(e)),
+  "so a reserva solicitada pode ser remarcada pelo site (a confirmada exige novo pedido)");
+
+secao("Horarios da propria reserva (remarcar)");
+{
+  const catalogo = {
+    servicos: { corte: { id: 7, nome: "Corte" }, barba: { id: 8, nome: "Barba" } },
+    regioes: { centro: { id: 3, nome: "Centro" }, "zona-sul": { id: 4, nome: "Zona Sul" } }
+  };
+  const reserva = (extra) => ({
+    estado: "solicitado", modalidade: "barbearia", regiao_nome: null,
+    servicos: [{ nome: "Corte" }], profissional: { nome_exibicao: "Ze" }, ...extra
+  });
+
+  const a = AgendaV1.horariosDaReserva(reserva(), catalogo);
+  ok(a && JSON.stringify(a.servicoIds) === "[7]" && a.modalidade === "barbearia" && a.regiaoId === null && a.profissionalNome === "Ze",
+    "barbearia: servico da reserva, sem regiao", a);
+
+  const b = AgendaV1.horariosDaReserva(reserva({ modalidade: "domicilio", regiao_nome: "Zona Sul" }), catalogo);
+  ok(b && b.modalidade === "domicilio" && b.regiaoId === 4, "domicilio: a regiao DA RESERVA (nao a primeira)", b);
+
+  const c = AgendaV1.horariosDaReserva(reserva({ servicos: [{ nome: "Corte" }, { nome: "Barba" }] }), catalogo);
+  ok(c && JSON.stringify(c.servicoIds) === "[7,8]", "combo: todos os servicos, na ordem", c);
+
+  ok(AgendaV1.horariosDaReserva(reserva({ servicos: [{ nome: "Servico que sumiu" }] }), catalogo) === null, "servico sem par no catalogo: null (nao chuta)");
+  ok(AgendaV1.horariosDaReserva(reserva({ modalidade: "domicilio", regiao_nome: "Regiao que sumiu" }), catalogo) === null, "regiao sem par no catalogo: null");
+  ok(AgendaV1.horariosDaReserva(reserva({ modalidade: "domicilio", regiao_nome: null }), catalogo) === null, "domicilio sem regiao: null");
+  ok(AgendaV1.horariosDaReserva(reserva({ servicos: [] }), catalogo) === null, "reserva sem servicos: null");
+  ok(AgendaV1.horariosDaReserva(null, catalogo) === null && AgendaV1.horariosDaReserva(reserva(), null) === null, "sem reserva ou sem catalogo: null");
+}
+{
+  const { chamadas, api } = redeFalsa([
+    resposta(200, { profissionais: [{ id: 5, nome_exibicao: "Outro" }, { id: 9, nome_exibicao: "Ze" }] }),
+    resposta(200, { data: "2026-10-07", horarios: ["10:00", "10:30"] })
+  ]);
+  const id = await api.profissionalDaReserva([7], "Ze");
+  ok(id === 9, "profissional da reserva escolhido pelo nome de exibicao (nao o primeiro)", id);
+  ok((await api.profissionalDaReserva([7], "Ze")) === 9 && chamadas.length === 1, "mesmo profissional: uma consulta so");
+  const horas = await api.horarios({ data: "2026-10-07", servicoIds: [7], profissionalId: id, modalidade: "domicilio", regiaoId: 4 });
+  ok(horas.length === 2 && chamadas[1].url ===
+    "/api/v1/disponibilidade?data=2026-10-07&servicos%5B%5D=7&profissional_id=9&modalidade=domicilio&regiao_id=4",
+    "domicilio manda a regiao da reserva na disponibilidade", chamadas[1].url);
+}
+{
+  const { api } = redeFalsa([resposta(200, { profissionais: [{ id: 5, nome_exibicao: "Outro" }] })]);
+  ok((await api.profissionalDaReserva([7], "Nome que nao existe")) === 5, "sem par pelo nome, usa o primeiro profissional");
+}
+{
+  const { api } = redeFalsa([resposta(200, { profissionais: [] })]);
+  const f = await falhaDe(api.profissionalDaReserva([7], "Ze"));
+  ok(f && f.tipo === "recusa" && f.mensagem === M.semProfissional, "reserva sem profissional disponivel: recusa clara", f);
 }
 
 console.log(falhas ? "\n>>> " + falhas + " FALHA(S)" : "\n>>> TUDO PASSOU");

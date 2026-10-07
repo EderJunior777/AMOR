@@ -28,6 +28,10 @@ process.env.NETLIFY_BLOBS_CONTEXT = Buffer.from(JSON.stringify({
   primaryRegion: "us-east-1"
 })).toString("base64");
 
+// O PIN e obrigatorio: o teste define o seu, nunca depende de um padrao.
+const PIN = "pin-de-teste-9471";
+process.env.PIN_PAINEL = PIN;
+
 const { default: handler, _definirRelogioParaTestes } = await import("../netlify/functions/agenda.mjs");
 
 // Relogio fixo: a suite da o mesmo resultado a qualquer hora do dia (antes
@@ -122,7 +126,7 @@ ok(r.status === 400, "servico que nao existe no config e recusado", r);
 
 console.log("\n--- Atendimento a domicilio ---");
 r = await chamar("POST", "", { ...CORTE, hora: "17:00", local: "domicilio", endereco: "", regiao: "centro" });
-ok(r.status === 400 && /endereco/i.test(r.corpo.erro), "domicilio sem endereco barrado", r);
+ok(r.status === 400 && /endereço/i.test(r.corpo.erro), "domicilio sem endereco barrado", r);
 
 r = await chamar("POST", "", { ...CORTE, hora: "17:00", local: "domicilio", endereco: "Rua das Flores, 123 - Centro", regiao: "centro" });
 ok(r.status === 201 && r.corpo.reserva.total === 40 + CONFIG.taxaDomicilio,
@@ -196,7 +200,7 @@ console.log("\n--- Deslocamento do domicilio sai da agenda ---");
     ...CORTE, dia: DIA5, hora: "10:00", local: "domicilio",
     endereco: "Rua Teste, 10", nome: "Vitor Nunes"
   });
-  ok(r2.status === 400 && /regiao/i.test(r2.corpo.erro), "domicilio sem regiao barrado", r2);
+  ok(r2.status === 400 && /região/i.test(r2.corpo.erro), "domicilio sem regiao barrado", r2);
 
   r2 = await chamar("POST", "", {
     ...CORTE, dia: DIA5, hora: "10:00", local: "domicilio",
@@ -258,7 +262,7 @@ console.log("--- Virada do dia no fuso de Sao Paulo ---");
   // 09/10 virou passado; 10/10 as 08:00 e futuro.
   fixarRelogio("2026-10-10T00:01:00-03:00");
   r2 = await chamar("POST", "", { ...CORTE, dia: "2026-10-09", hora: "19:30", nome: "Ontem Silva" });
-  ok(r2.status === 400 && /ja passou/i.test(r2.corpo.erro), "depois da meia-noite, 09/10 e dia que ja passou", r2);
+  ok(r2.status === 400 && /já passou/i.test(r2.corpo.erro), "depois da meia-noite, 09/10 e dia que ja passou", r2);
 
   r2 = await chamar("POST", "", { ...CORTE, dia: "2026-10-10", hora: "08:00", nome: "Madrugador Silva" });
   ok(r2.status === 201, "depois da meia-noite, 10/10 08:00 e aceito", r2);
@@ -275,6 +279,9 @@ r = await chamar("GET", `?dia=${DIA}&pin=errado`);
 ok(r.status === 401, "PIN errado bloqueado", r);
 
 r = await chamar("GET", `?dia=${DIA}&pin=1234`);
+ok(r.status === 401, "o antigo PIN padrao 1234 nao abre o painel", r);
+
+r = await chamar("GET", `?dia=${DIA}&pin=${PIN}`);
 const horas = (r.corpo.agendamentos || []).map((a) => a.hora);
 ok(r.status === 200 && horas.join(",") === "11:00,14:30,15:30,17:00,19:30",
    "painel lista um item por agendamento, em ordem", horas);
@@ -285,8 +292,24 @@ console.log("\n--- Liberar horario ---");
 r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}&pin=errado`);
 ok(r.status === 401, "liberar sem o PIN certo bloqueado", r);
 
-r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}&pin=1234`);
+r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}`);
+ok(r.status === 401, "liberar sem informar o PIN bloqueado", r);
+
+r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}&pin=${PIN}`);
 ok(r.status === 200 && r.corpo.liberados === 2, "liberou os 2 blocos do combo", r);
+
+console.log("\n--- Sem PIN_PAINEL o painel recusa ---");
+delete process.env.PIN_PAINEL;
+r = await chamar("GET", `?dia=${DIA}&pin=1234`);
+ok(r.status === 503 && r.corpo.erro === "Painel não configurado", "painel sem PIN configurado: 503", r);
+r = await chamar("DELETE", `?dia=${DIA}&grupo=${grupoCombo}&pin=1234`);
+ok(r.status === 503, "liberar sem PIN configurado: 503", r);
+process.env.PIN_PAINEL = "";
+r = await chamar("GET", `?dia=${DIA}&pin=`);
+ok(r.status === 503, "PIN_PAINEL vazio tambem recusa (nao aceita PIN vazio)", r);
+r = await chamar("GET", `?dia=${DIA}`);
+ok(r.status === 200, "consulta publica de horarios segue funcionando sem PIN configurado", r);
+process.env.PIN_PAINEL = PIN;
 
 r = await chamar("GET", `?dia=${DIA}`);
 // Sem conferir o formato, este teste passava por acaso quando a lista
@@ -311,6 +334,25 @@ ok(aceitos === 1 && recusados === 11, `exatamente 1 passou e 11 levaram 409 (pas
 
 r = await chamar("GET", `?dia=${DIA2}`);
 ok(r.corpo.ocupados.length === 1, "so um bloco ficou gravado no dia", r.corpo.ocupados);
+
+console.log("\n--- Erro interno (500) nao vaza detalhe ---");
+// O armazenamento recusa tudo; o erro vai para o log do servidor, nunca
+// para o navegador.
+const fetchOriginal = globalThis.fetch;
+globalThis.fetch = async (url, opcoes) =>
+  String(url).startsWith(`http://localhost:${port}`)
+    ? new Response("falha simulada", { status: 400 })
+    : fetchOriginal(url, opcoes);
+const logados = [];
+const consoleErrorOriginal = console.error;
+console.error = (...partes) => { logados.push(partes.map(String).join(" ")); };
+r = await chamar("GET", `?dia=${DIA2}`);
+console.error = consoleErrorOriginal;
+globalThis.fetch = fetchOriginal;
+ok(r.status === 500, "erro interno responde 500", r);
+ok(JSON.stringify(r.corpo) === JSON.stringify({ erro: "Erro no servidor da agenda." }),
+   "so a mensagem generica, sem 'detalhe'", r.corpo);
+ok(logados.some((l) => l.startsWith("[agenda] erro interno")), "o erro fica no log do servidor", logados);
 
 await server.stop();
 rmSync(dir, { recursive: true, force: true });

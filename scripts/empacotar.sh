@@ -17,7 +17,10 @@ raiz="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$raiz"
 
 rev="${1:-HEAD}"
-caminhos=(backend docs scripts)
+# frontend entra pelo git: frontend/node_modules (ignorado) e qualquer .env
+# ficam de fora por construcao, e as conferencias abaixo recusam se algum
+# deles for versionado por engano.
+caminhos=(backend frontend docs scripts)
 
 git rev-parse --verify --quiet "${rev}^{commit}" >/dev/null \
   || { echo "ERRO: '${rev}' nao e um commit." >&2; exit 1; }
@@ -54,8 +57,15 @@ saida="entregas/cleison-${curto}-$(date +%Y-%m-%d).zip"
 
 git archive --format=zip --prefix=cleison/ -o "$saida" "$rev" -- "${caminhos[@]}"
 
+# Conferencia 3: o zip gerado, arquivo por arquivo (defesa em profundidade).
+if unzip -Z1 "$saida" | sed 's|^cleison/||' | grep -E "$proibidos"; then
+  rm -f "$saida"
+  echo "ERRO: o zip saiu com os arquivos acima. Pacote apagado." >&2
+  exit 1
+fi
+
 (cd entregas && sha256sum "$(basename "$saida")" > "$(basename "$saida").sha256")
 
 echo "Pacote: $saida"
 echo "SHA-256: $(cut -d' ' -f1 "$saida.sha256")"
-echo "Conteudo: ${caminhos[*]} do commit ${curto} (sem .env, logs, vendor/ e caches)."
+echo "Conteudo: ${caminhos[*]} do commit ${curto} (sem .env, logs, vendor/, node_modules/ e caches)."

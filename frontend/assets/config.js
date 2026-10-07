@@ -7,9 +7,9 @@
 
 const CONFIG = {
   // ---- Identidade -------------------------------------------------------
-  barbearia: "Barbearia do Ze",
-  barbeiro: "Ze",
-  slogan: "Corte na regua, na barbearia ou na sua casa.",
+  barbearia: "Barbearia do Zé",
+  barbeiro: "Zé",
+  slogan: "Corte na régua, na barbearia ou na sua casa.",
 
   // ---- WhatsApp ---------------------------------------------------------
   // Formato: codigo do pais + DDD + numero, SO NUMEROS.
@@ -51,12 +51,12 @@ const CONFIG = {
   // ---- Servicos ---------------------------------------------------------
   // duracao SEMPRE em minutos e multipla do intervalo acima (30, 60, 90...)
   servicos: [
-    { id: "corte",        nome: "Corte",           preco: 40, duracao: 30, descricao: "Maquina, tesoura e acabamento." },
+    { id: "corte",        nome: "Corte",           preco: 40, duracao: 30, descricao: "Máquina, tesoura e acabamento." },
     { id: "barba",        nome: "Barba",           preco: 30, duracao: 30, descricao: "Toalha quente, navalha e balm." },
     { id: "corte-barba",  nome: "Corte + Barba",   preco: 65, duracao: 60, descricao: "O combo completo." },
-    { id: "degrade",      nome: "Degrade",         preco: 50, duracao: 60, descricao: "Fade caprichado, do zero ao topo." },
-    { id: "pezinho",      nome: "Pezinho",         preco: 20, duracao: 30, descricao: "So o acabamento pra segurar a semana." },
-    { id: "infantil",     nome: "Corte infantil",  preco: 35, duracao: 30, descricao: "Paciencia inclusa." }
+    { id: "degrade",      nome: "Degradê",         preco: 50, duracao: 60, descricao: "Fade caprichado, do zero ao topo." },
+    { id: "pezinho",      nome: "Pezinho",         preco: 20, duracao: 30, descricao: "Só o acabamento pra segurar a semana." },
+    { id: "infantil",     nome: "Corte infantil",  preco: 35, duracao: 30, descricao: "Paciência inclusa." }
   ],
 
   // ---- Agenda nova (SO PARA HOMOLOGACAO) ---------------------------------

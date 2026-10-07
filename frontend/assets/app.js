@@ -23,7 +23,7 @@
   var agendaNova = nova && typeof window.AgendaV1 !== "undefined"
     ? window.AgendaV1.criar({ base: CONFIG.agendaNova.api || "/api/v1" })
     : null;
-  var ERRO_GENERICO = "Nao consegui concluir agora. Tente de novo em instantes.";
+  var ERRO_GENERICO = "Não consegui concluir agora. Tente de novo em instantes.";
 
   var estado = {
     servico: null,
@@ -74,7 +74,7 @@
     return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
   }
 
-  var SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+  var SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   var MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
   function dataPorExtenso(iso) {
@@ -119,8 +119,8 @@
       // Agenda nova: nada de modo demonstracao (reserva so no aparelho).
       estado.offline = navigator.onLine === false;
       if (estado.offline) {
-        el("aviso-local").textContent = "Voce esta sem internet. Da pra ver os servicos e os precos, " +
-          "mas pra reservar um horario de verdade precisa de conexao.";
+        el("aviso-local").textContent = "Você está sem internet. Dá pra ver os serviços e os preços, " +
+          "mas pra reservar um horário de verdade precisa de conexão.";
         el("aviso-local").hidden = false;
       }
       atualizarBotaoConfirmar();
@@ -138,8 +138,8 @@
     if (!aviso) return;
 
     if (estado.offline) {
-      aviso.innerHTML = "<strong>Voce esta sem internet.</strong> Da pra ver os servicos e os " +
-        "precos, mas pra reservar um horario de verdade precisa de conexao.";
+      aviso.innerHTML = "<strong>Você está sem internet.</strong> Dá pra ver os serviços e os " +
+        "preços, mas pra reservar um horário de verdade precisa de conexão.";
     }
 
     aviso.hidden = false;
@@ -152,7 +152,7 @@
 
     botao.disabled = !!estado.offline || !!estado.semAgenda;
     botao.querySelector("span").textContent = estado.offline
-      ? "Sem internet - nao da pra reservar"
+      ? "Sem internet - não dá pra reservar"
       : estado.semAgenda ? "Agenda fora do ar - tente mais tarde"
       : "Confirmar e ir para o WhatsApp";
   }
@@ -285,7 +285,9 @@
     if (!alvo) return;
     setTimeout(function () {
       var topo = alvo.getBoundingClientRect().top + window.pageYOffset - 90;
-      window.scrollTo({ top: topo, behavior: "smooth" });
+      // Quem pediu menos movimento no aparelho não leva rolagem animada.
+      var reduz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollTo({ top: topo, behavior: reduz ? "auto" : "smooth" });
     }, 90);
   }
 
@@ -330,7 +332,7 @@
       caixa.appendChild(botao);
     });
 
-    el("dica-servico").textContent = CONFIG.servicos.length + " servicos";
+    el("dica-servico").textContent = CONFIG.servicos.length + " serviços";
   }
 
   function desenharLocal() {
@@ -340,7 +342,7 @@
     var opcoes = [{
       id: "barbearia",
       nome: "Na barbearia",
-      info: CONFIG.endereco || "Voce vem ate o barbeiro",
+      info: CONFIG.endereco || "Você vem até o barbeiro",
       extra: 0
     }];
 
@@ -348,7 +350,7 @@
       opcoes.push({
         id: "domicilio",
         nome: "Em casa",
-        info: "O barbeiro vai ate voce",
+        info: "O barbeiro vai até você",
         extra: Number(CONFIG.taxaDomicilio || 0)
       });
     }
@@ -411,7 +413,7 @@
 
     var vazio = document.createElement("option");
     vazio.value = "";
-    vazio.textContent = "Escolha a regiao...";
+    vazio.textContent = "Escolha a região...";
     caixa.appendChild(vazio);
 
     regioes.forEach(function (regiao) {
@@ -441,7 +443,7 @@
     if (!nota) return;
 
     if (!estado.regiao) {
-      nota.textContent = "O tempo de deslocamento muda os horarios disponiveis.";
+      nota.textContent = "O tempo de deslocamento muda os horários disponíveis.";
       return;
     }
 
@@ -506,7 +508,7 @@
   // antecedencia, deslocamento e ocupacao). O id vem do catalogo da API.
   function horariosDaApi(iso, servico, local, regiao) {
     if (!servico || !servico.apiId) {
-      return Promise.reject({ mensagem: "A agenda esta fora do ar. Recarregue a pagina em instantes." });
+      return Promise.reject({ mensagem: "A agenda está fora do ar. Recarregue a página em instantes." });
     }
     return agendaNova.profissionalPara([servico.apiId]).then(function (profissional) {
       return agendaNova.horarios({
@@ -565,19 +567,19 @@
       Number(estado.servico.duracao), estado.dia, estado.ocupados, deslocamentoAtual()
     );
 
-    el("ajuda-hora").textContent = estado.servico.duracao + " min - ate as " + CONFIG.fechamento;
+    el("ajuda-hora").textContent = estado.servico.duracao + " min - até as " + CONFIG.fechamento;
     caixa.innerHTML = "";
 
     if (!livres.length) {
       caixa.innerHTML =
         '<div class="vazio"><strong>Esse dia lotou.</strong>' +
-        "Nao sobrou horario para " + escapar(estado.servico.nome) + ". Tente o dia seguinte.</div>";
+        "Não sobrou horário para " + escapar(estado.servico.nome) + ". Tente o dia seguinte.</div>";
       estadoDoPasso("passo-dados", false);
       return;
     }
 
     var faixas = [
-      { nome: "Manha", ate: 12 * 60 },
+      { nome: "Manhã", ate: 12 * 60 },
       { nome: "Tarde", ate: 18 * 60 },
       { nome: "Noite", ate: 24 * 60 }
     ];
@@ -642,17 +644,17 @@
       : null;
 
     var html = '<p class="comanda-titulo">Sua comanda</p>';
-    html += linhaComanda("Servico", estado.servico.nome + " (" + estado.servico.duracao + " min)");
+    html += linhaComanda("Serviço", estado.servico.nome + " (" + estado.servico.duracao + " min)");
     html += linhaComanda("Local", estado.local === "domicilio"
       ? "Na sua casa" + (estado.regiao ? " - " + estado.regiao.nome : "")
       : "Na barbearia");
     html += linhaComanda("Quando", estado.dia
-      ? dataPorExtenso(estado.dia) + (estado.hora ? ", " + estado.hora + " as " + fim : "")
+      ? dataPorExtenso(estado.dia) + (estado.hora ? ", " + estado.hora + " às " + fim : "")
       : "A escolher");
-    html += linhaComanda("Valor do servico", dinheiro(estado.servico.preco));
+    html += linhaComanda("Valor do serviço", dinheiro(estado.servico.preco));
 
     if (estado.local === "domicilio" && taxaAtual()) {
-      html += linhaComanda("Taxa de domicilio", dinheiro(taxaAtual()));
+      html += linhaComanda("Taxa de domicílio", dinheiro(taxaAtual()));
     }
 
     html += '<div class="comanda-picote"></div>';
@@ -686,6 +688,86 @@
     el("barra-resumo").classList.remove("visivel");
   }
 
+  /* ------------------------------------------- janela de sucesso (dialog) */
+
+  // A tela de sucesso é uma janela modal: ao abrir, o foco vai para o título
+  // (o leitor de tela anuncia a janela); o Tab fica preso dentro dela; Esc
+  // fecha e o foco volta para onde estava no formulário. O resto da página
+  // fica inerte enquanto ela está aberta.
+  var focoAntesDoSucesso = null;
+  var FORA_DA_JANELA = ["header.capa", "main", "footer.rodape", "#barra-resumo", "#aviso-local"];
+
+  function focaveisDaJanela() {
+    var lista = el("tela-sucesso").querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    return Array.prototype.filter.call(lista, function (n) {
+      return n.getClientRects().length > 0 && getComputedStyle(n).visibility !== "hidden";
+    });
+  }
+
+  function definirInercia(inerte) {
+    FORA_DA_JANELA.forEach(function (seletor) {
+      var no = document.querySelector(seletor);
+      if (!no) return;
+      if (inerte) no.setAttribute("inert", ""); else no.removeAttribute("inert");
+    });
+  }
+
+  function abrirSucesso() {
+    // No Safari/iPhone clicar num botão NÃO dá foco a ele (activeElement fica
+    // no body): sem um alvo certo, o Esc não teria para onde devolver o foco.
+    var ativo = document.activeElement;
+    focoAntesDoSucesso = ativo && ativo !== document.body && ativo !== document.documentElement && ativo.focus
+      ? ativo
+      : el("botao-confirmar");
+    esconderBarra();
+    definirInercia(true);
+    el("tela-sucesso").hidden = false;
+    el("sucesso-titulo").focus();
+  }
+
+  function fecharSucesso() {
+    var tela = el("tela-sucesso");
+    if (tela.hidden) return;
+    tela.hidden = true;
+    definirInercia(false);
+
+    // Volta ao formulário: onde o foco estava; se aquilo não existe mais ou
+    // está desligado, o primeiro campo.
+    var alvo = focoAntesDoSucesso;
+    if (!alvo || !document.body.contains(alvo) || alvo.disabled) alvo = el("campo-nome");
+    if (alvo && alvo.focus) alvo.focus();
+    focoAntesDoSucesso = null;
+  }
+
+  function ligarJanelaDeSucesso() {
+    document.addEventListener("keydown", function (e) {
+      var tela = el("tela-sucesso");
+      if (!tela || tela.hidden) return;
+
+      if (e.key === "Escape" || e.key === "Esc") {
+        e.preventDefault();
+        fecharSucesso();
+        return;
+      }
+
+      if (e.key !== "Tab") return;
+      var focaveis = focaveisDaJanela();
+      if (!focaveis.length) { e.preventDefault(); el("sucesso-titulo").focus(); return; }
+
+      // O ciclo é sempre feito aqui, nunca pela ordem nativa: o Safari, por
+      // exemplo, não põe links no Tab, e a ordem nativa deixaria o foco sair
+      // da janela justamente a partir do que ele considera o "primeiro".
+      var indice = focaveis.indexOf(document.activeElement);   // -1: o título (ou fora)
+      var ultimoIndice = focaveis.length - 1;
+      var proximo;
+      if (e.shiftKey) proximo = focaveis[indice <= 0 ? ultimoIndice : indice - 1];
+      else proximo = focaveis[indice === -1 || indice === ultimoIndice ? 0 : indice + 1];
+
+      e.preventDefault();
+      proximo.focus();
+    });
+  }
+
   // Quando o cliente ja esta no passo final, a barra so atrapalha - ela
   // ficaria em cima do proprio botao de confirmar.
   function ligarSumicoDaBarra() {
@@ -707,10 +789,10 @@
     var duracao = dados.duracao || (estado.servico && estado.servico.duracao) || 0;
 
     var linhas = [
-      "Ola, " + CONFIG.barbeiro + "! Acabei de agendar pelo site:",
+      "Olá, " + CONFIG.barbeiro + "! Acabei de agendar pelo site:",
       "",
-      "Servico: " + dados.servico + " (" + duracao + " min)",
-      "Dia: " + dataPorExtenso(dados.dia) + " as " + dados.hora,
+      "Serviço: " + dados.servico + " (" + duracao + " min)",
+      "Dia: " + dataPorExtenso(dados.dia) + " às " + dados.hora,
       "Local: " + (dados.local === "domicilio"
         ? "na minha casa - " + dados.endereco +
           (dados.regiaoNome ? " (" + dados.regiaoNome + ")" : "")
@@ -723,7 +805,7 @@
 
     linhas.push("");
     linhas.push("Total: " + dinheiro(dados.total) +
-      (dados.local === "domicilio" ? " (ja com a taxa de domicilio)" : ""));
+      (dados.local === "domicilio" ? " (já com a taxa de domicílio)" : ""));
     linhas.push("Pode confirmar?");
 
     return "https://wa.me/" + String(CONFIG.whatsapp).replace(/\D/g, "") +
@@ -749,19 +831,19 @@
   function enviar(evento) {
     evento.preventDefault();
     if (estado.enviando) return;
-    if (estado.offline) return mostrarErro("Sem internet nao da pra garantir o horario. Tente de novo quando voltar.");
+    if (estado.offline) return mostrarErro("Sem internet não dá pra garantir o horário. Tente de novo quando voltar.");
 
     var nome = el("campo-nome").value.trim();
     var telefone = el("campo-telefone").value.trim();
     var endereco = el("campo-endereco").value.trim();
     var observacao = el("campo-obs").value.trim();
 
-    if (!estado.servico || !estado.dia || !estado.hora) return mostrarErro("Escolha o servico, o dia e o horario.");
+    if (!estado.servico || !estado.dia || !estado.hora) return mostrarErro("Escolha o serviço, o dia e o horário.");
     if (nome.length < 2) return mostrarErro("Escreva seu nome.");
     if (telefone.replace(/\D/g, "").length < 10) return mostrarErro("Escreva seu telefone com DDD.");
-    if (estado.local === "domicilio" && endereco.length < 5) return mostrarErro("Escreva o endereco do atendimento.");
+    if (estado.local === "domicilio" && endereco.length < 5) return mostrarErro("Escreva o endereço do atendimento.");
     if (estado.local === "domicilio" && (CONFIG.regioes || []).length && !estado.regiao)
-      return mostrarErro("Escolha a regiao do atendimento la no passo 2.");
+      return mostrarErro("Escolha a região do atendimento lá no passo 2.");
 
     mostrarErro("");
 
@@ -786,7 +868,7 @@
     estado.enviando = true;
     var botao = el("botao-confirmar");
     botao.disabled = true;
-    botao.querySelector("span").textContent = "Reservando seu horario...";
+    botao.querySelector("span").textContent = "Reservando seu horário...";
 
     reservar(dados)
       .then(function (resposta) {
@@ -797,7 +879,7 @@
         var corpo = (falha && falha.corpo) || {};
 
         if (falha && falha.status === 409) {
-          mostrarErro("Poxa, esse horario acabou de ser preenchido por outro cliente. Escolha outro.");
+          mostrarErro("Poxa, esse horário acabou de ser preenchido por outro cliente. Escolha outro.");
           estado.hora = null;
           estadoDoPasso("passo-dados", false);
           ativar("passo-hora");
@@ -805,7 +887,7 @@
           atualizarBarra();
           irPara("passo-hora");
         } else {
-          mostrarErro(corpo.erro || "Nao consegui reservar agora. Tente de novo em instantes.");
+          mostrarErro(corpo.erro || "Não consegui reservar agora. Tente de novo em instantes.");
         }
       })
       .then(function () {
@@ -818,11 +900,11 @@
   // tentativa fica em aberto e reenviar o MESMO pedido usa a mesma chave;
   // qualquer resposta da API encerra a tentativa.
   function enviarParaAgendaNova(form) {
-    if (!agendaNova || estado.semAgenda) return mostrarErro("A agenda esta fora do ar. Tente de novo em instantes.");
+    if (!agendaNova || estado.semAgenda) return mostrarErro("A agenda está fora do ar. Tente de novo em instantes.");
     estado.enviando = true;
     var botao = el("botao-confirmar");
     botao.disabled = true;
-    botao.querySelector("span").textContent = "Reservando seu horario...";
+    botao.querySelector("span").textContent = "Reservando seu horário...";
 
     var servico = estado.servico;
     agendaNova.profissionalPara([servico.apiId])
@@ -886,29 +968,64 @@
     return linha;
   }
 
-  var ESTADOS_DA_RESERVA = {
-    solicitado: "Aguardando confirmacao do barbeiro",
-    confirmado: "Confirmada",
-    em_atendimento: "Em atendimento",
-    concluido: "Concluida",
-    cancelado: "Cancelada",
-    nao_compareceu: "Nao compareceu"
-  };
-
-  function linhasDaReserva(caixa, reserva) {
+  // Estados, rotulos e regras (o que oferecer em cada estado) moram no
+  // agenda-v1.js, onde os testes de unidade os cobrem. Estado desconhecido
+  // vira "Em análise": nunca o texto cru da API.
+  function linhasDaReserva(caixa, reserva, semCodigo) {
     var nomes = (reserva.servicos || []).map(function (s) { return s.nome; }).join(" + ");
     var duracao = (reserva.servicos || []).reduce(function (t, s) { return t + Number(s.duracao_minutos); }, 0);
     var fim = paraHora(emMinutos(reserva.hora) + duracao);
 
-    caixa.appendChild(linhaDeRecibo("Servico", nomes));
-    caixa.appendChild(linhaDeRecibo("Quando", dataPorExtenso(reserva.data) + ", " + reserva.hora + " as " + fim));
+    caixa.appendChild(linhaDeRecibo("Serviço", nomes));
+    caixa.appendChild(linhaDeRecibo("Quando", dataPorExtenso(reserva.data) + ", " + reserva.hora + " às " + fim));
     caixa.appendChild(linhaDeRecibo("Local", reserva.modalidade === "domicilio"
       ? "Na sua casa" + (reserva.regiao_nome ? " - " + reserva.regiao_nome : "")
       : "Na barbearia"));
     caixa.appendChild(linhaDeRecibo("Total", dinheiro(Number(reserva.total_centavos) / 100)));
-    caixa.appendChild(linhaDeRecibo("Situacao", ESTADOS_DA_RESERVA[reserva.estado] || reserva.estado));
-    caixa.appendChild(linhaDeRecibo("Codigo da reserva", reserva.codigo));
+    caixa.appendChild(linhaDeRecibo("Situação", window.AgendaV1.rotuloDoEstado(reserva.estado)));
+    if (!semCodigo) caixa.appendChild(linhaDeRecibo("Código da reserva", reserva.codigo));
     return { nomes: nomes, duracao: duracao };
+  }
+
+  // Botão "Copiar código" da tela de sucesso: clipboard e, se não der,
+  // seleciona o texto para o cliente copiar pelo menu do aparelho. O aviso
+  // fica numa região aria-live (e é limpo antes, para repetir o anúncio).
+  function ligarCopiarCodigo() {
+    var botao = el("btn-copiar-codigo");
+    if (!botao) return;
+    var aviso = el("aviso-copiado");
+
+    function selecionar() {
+      var faixa = document.createRange();
+      faixa.selectNodeContents(el("sucesso-codigo"));
+      var selecao = window.getSelection();
+      selecao.removeAllRanges();
+      selecao.addRange(faixa);
+    }
+
+    function dizer(texto) {
+      aviso.textContent = "";
+      setTimeout(function () { aviso.textContent = texto; }, 40);
+    }
+
+    function aMaoSeguida() {
+      selecionar();
+      var copiou = false;
+      try { copiou = document.execCommand("copy"); } catch (e) { copiou = false; }
+      dizer(copiou ? "Copiado!" : "Código selecionado: use Copiar no menu do aparelho.");
+    }
+
+    botao.addEventListener("click", function () {
+      var codigo = el("sucesso-codigo").textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(codigo).then(function () {
+          selecionar();
+          dizer("Copiado!");
+        }, aMaoSeguida);
+      } else {
+        aMaoSeguida();
+      }
+    });
   }
 
   // Sucesso na agenda nova: mostra o codigo (credencial para consultar,
@@ -917,13 +1034,17 @@
   function mostrarSucessoDaAgendaNova(reserva, form) {
     var caixa = el("sucesso-detalhe");
     caixa.textContent = "";
-    var resumo = linhasDaReserva(caixa, reserva);
+    var resumo = linhasDaReserva(caixa, reserva, true);
+
+    el("sucesso-codigo").textContent = reserva.codigo;
+    el("aviso-copiado").textContent = "";
+    el("sucesso-codigo-bloco").hidden = false;
 
     var tela = el("tela-sucesso");
-    tela.querySelector("h2").textContent = "Pedido de horario enviado";
-    tela.querySelector(".recibo-sub").textContent = "O horario fica guardado no seu nome enquanto o barbeiro confirma.";
-    tela.querySelector(".recibo-nota").textContent = "Guarde o codigo da reserva: com ele e o mesmo telefone da pra " +
-      "consultar, cancelar ou remarcar em \"Minha reserva\", mais abaixo na pagina.";
+    tela.querySelector("h2").textContent = "Pedido de horário enviado";
+    tela.querySelector(".recibo-sub").textContent = "O horário fica guardado no seu nome enquanto o barbeiro confirma.";
+    tela.querySelector(".recibo-nota").textContent = "Guarde o código da reserva: com ele e o mesmo número de telefone " +
+      "da reserva (com DDD) dá pra consultar, cancelar ou remarcar em \"Minha reserva\", mais abaixo na página.";
 
     el("link-zap").href = montarMensagem({
       servico: resumo.nomes,
@@ -938,22 +1059,26 @@
       observacao: form.observacao,
       total: Number(reserva.total_centavos) / 100
     });
-    tela.hidden = false;
-    esconderBarra();
+    abrirSucesso();
 
     if (el("minha-codigo")) el("minha-codigo").value = reserva.codigo;
     if (el("minha-telefone")) el("minha-telefone").value = form.telefone;
   }
 
   // Consultar, cancelar e remarcar por codigo + telefone (so agenda nova).
+  // Remarcar so existe DEPOIS de consultar: os horarios vem da API de
+  // disponibilidade, com o servico, a modalidade, a regiao e o profissional
+  // da PROPRIA reserva (nunca campos soltos de data e hora).
   function ligarMinhaReserva() {
     var secao = el("minha-reserva");
     if (!secao || !agendaNova) return;
     secao.hidden = false;
+    el("nota-telefone").hidden = false;
+    ligarCopiarCodigo();
 
-    el("minha-telefone").addEventListener("input", function (e) {
-      e.target.value = mascaraTelefone(e.target.value);
-    });
+    var V1 = window.AgendaV1;
+    var consultada = null;                  // { codigo, telefone, reserva } da ultima consulta
+    var novo = { dia: null, hora: null, pedido: 0, filtro: null };
 
     function avisar(erro, aviso) {
       el("minha-erro").textContent = erro || "";
@@ -961,24 +1086,70 @@
       el("minha-aviso").textContent = aviso || "";
     }
 
+    function fecharRemarcacao() {
+      novo.pedido++;
+      novo.dia = null;
+      novo.hora = null;
+      novo.filtro = null;
+      el("minha-remarcar").hidden = true;
+      el("minha-dias").textContent = "";
+      el("minha-horas").textContent = "";
+      el("btn-minha-confirmar-remarcar").disabled = true;
+    }
+
+    // Mudou o codigo ou o telefone: a consulta anterior deixa de valer, e
+    // com ela o direito de remarcar.
+    function invalidarConsulta() {
+      if (!consultada) return;
+      consultada = null;
+      el("btn-minha-remarcar").disabled = true;
+      el("btn-novo-horario").hidden = true;
+      el("minha-detalhe").textContent = "";
+      fecharRemarcacao();
+    }
+
+    function mostrarReserva(reserva) {
+      var caixa = el("minha-detalhe");
+      caixa.textContent = "";
+      linhasDaReserva(caixa, reserva);
+      fecharRemarcacao();
+      el("btn-minha-remarcar").disabled = !V1.podeRemarcar(reserva.estado);
+      el("btn-novo-horario").hidden = !V1.ofereceNovoHorario(reserva.estado);
+      return reserva.estado === "confirmado"
+        ? "Reserva confirmada: o horário não é remarcado por aqui. Cancele e marque um novo horário."
+        : "";
+    }
+
+    el("minha-telefone").addEventListener("input", function (e) {
+      e.target.value = mascaraTelefone(e.target.value);
+      invalidarConsulta();
+    });
+    el("minha-codigo").addEventListener("input", invalidarConsulta);
+
+    function dadosDosCampos() {
+      var codigo = el("minha-codigo").value.trim();
+      var telefone = el("minha-telefone").value.trim();
+      if (!codigo || telefone.replace(/\D/g, "").length < 10) {
+        avisar("Informe o código da reserva e o telefone com DDD.");
+        return null;
+      }
+      return { codigo: codigo, telefone: telefone };
+    }
+
     function acao(id, executar) {
       var botao = el(id);
       botao.addEventListener("click", function () {
-        var codigo = el("minha-codigo").value.trim();
-        var telefone = el("minha-telefone").value.trim();
-        if (!codigo || telefone.replace(/\D/g, "").length < 10) {
-          return avisar("Informe o codigo da reserva e o telefone com DDD.");
-        }
+        var campos = dadosDosCampos();
+        if (!campos) return;
         avisar("");
         botao.disabled = true;
         Promise.resolve()
-          .then(function () { return executar(codigo, telefone); })
-          .then(function (resultado) {
-            if (!resultado) return;
-            var caixa = el("minha-detalhe");
-            caixa.textContent = "";
-            linhasDaReserva(caixa, resultado.reserva);
-            avisar("", resultado.aviso);
+          .then(function () { return executar(campos.codigo, campos.telefone); })
+          .then(function (reserva) {
+            if (!reserva) return;
+            consultada = { codigo: campos.codigo, telefone: campos.telefone, reserva: reserva.reserva };
+            var nota = mostrarReserva(reserva.reserva);
+            avisar("", reserva.aviso || nota);
           }, function (falha) {
             avisar((falha && falha.mensagem) || ERRO_GENERICO);
           })
@@ -990,20 +1161,186 @@
       return agendaNova.consultar(codigo, telefone).then(function (r) { return { reserva: r }; });
     });
 
-    acao("btn-minha-remarcar", function (codigo, telefone) {
-      var dia = el("minha-data").value;
-      var hora = el("minha-hora").value;
-      if (!dia || !hora) throw { mensagem: "Escolha o novo dia e o novo horario." };
-      return agendaNova.remarcar(codigo, telefone, dia, hora).then(function (r) {
-        return { reserva: r, aviso: "Reserva remarcada." };
-      });
-    });
-
     acao("btn-minha-cancelar", function (codigo, telefone) {
       if (!window.confirm("Cancelar esta reserva?")) return null;
       return agendaNova.cancelar(codigo, telefone).then(function (r) {
         return { reserva: r, aviso: "Reserva cancelada." };
       });
+    });
+
+    // ---- remarcar: dias e horarios livres da propria reserva ------------
+
+    function textoDaFalha(falha) {
+      return (falha && falha.mensagem) || ERRO_GENERICO;
+    }
+
+    function desenharHorasDaRemarcacao(horas) {
+      var caixa = el("minha-horas");
+      caixa.textContent = "";
+
+      if (!horas.length) {
+        var vazio = document.createElement("div");
+        vazio.className = "vazio";
+        vazio.textContent = "Nenhum horário livre nesse dia. Tente outro dia.";
+        caixa.appendChild(vazio);
+        return;
+      }
+
+      var grade = document.createElement("div");
+      grade.className = "horas";
+      horas.forEach(function (hora) {
+        var botao = document.createElement("button");
+        botao.type = "button";
+        botao.className = "hora";
+        botao.setAttribute("aria-pressed", "false");
+        var rotulo = document.createElement("span");
+        rotulo.textContent = hora;
+        botao.appendChild(rotulo);
+
+        botao.addEventListener("click", function () {
+          novo.hora = hora;
+          Array.prototype.forEach.call(grade.children, function (b) {
+            b.setAttribute("aria-pressed", String(b === botao));
+          });
+          el("btn-minha-confirmar-remarcar").disabled = false;
+        });
+        grade.appendChild(botao);
+      });
+      caixa.appendChild(grade);
+    }
+
+    function carregarHorasDaRemarcacao() {
+      var caixa = el("minha-horas");
+      var pedido = ++novo.pedido;
+      novo.hora = null;
+      el("btn-minha-confirmar-remarcar").disabled = true;
+
+      caixa.textContent = "";
+      var espera = document.createElement("div");
+      espera.className = "horas";
+      for (var i = 0; i < 8; i++) {
+        var bloco = document.createElement("div");
+        bloco.className = "esqueleto";
+        espera.appendChild(bloco);
+      }
+      caixa.appendChild(espera);
+
+      var f = novo.filtro;
+      agendaNova.horarios({
+        data: novo.dia,
+        servicoIds: f.servicoIds,
+        profissionalId: f.profissionalId,
+        modalidade: f.modalidade,
+        regiaoId: f.regiaoId
+      }).then(function (horas) {
+        if (pedido !== novo.pedido) return;     // dia ja trocado ou consulta invalidada
+        desenharHorasDaRemarcacao(horas);
+      }, function (falha) {
+        if (pedido !== novo.pedido) return;
+        caixa.textContent = "";
+        var aviso = document.createElement("div");
+        aviso.className = "vazio";
+        aviso.textContent = textoDaFalha(falha);
+        caixa.appendChild(aviso);
+      });
+    }
+
+    function desenharDiasDaRemarcacao() {
+      var caixa = el("minha-dias");
+      caixa.textContent = "";
+      var fechados = CONFIG.diasFechados || [];
+      var hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
+      for (var i = 0; i < Number(CONFIG.diasParaFrente || 30); i++) {
+        var data = new Date(hoje.getTime());
+        data.setDate(data.getDate() + i);
+        if (fechados.indexOf(data.getDay()) !== -1) continue;
+
+        (function (data, i) {
+          var iso = paraISO(data);
+          var botao = document.createElement("button");
+          botao.type = "button";
+          botao.className = "dia";
+          botao.setAttribute("aria-pressed", "false");
+
+          [["dia-semana", i === 0 ? "Hoje" : SEMANA[data.getDay()]],
+           ["dia-numero", String(data.getDate())],
+           ["dia-mes", MESES[data.getMonth()]]].forEach(function (par) {
+            var parte = document.createElement("span");
+            parte.className = par[0];
+            parte.textContent = par[1];
+            botao.appendChild(parte);
+          });
+
+          botao.addEventListener("click", function () {
+            novo.dia = iso;
+            Array.prototype.forEach.call(caixa.children, function (b) {
+              b.setAttribute("aria-pressed", String(b === botao));
+            });
+            carregarHorasDaRemarcacao();
+          });
+          caixa.appendChild(botao);
+        })(data, i);
+      }
+    }
+
+    // Remarcar so abre depois de consultar, e so se a reserva permite.
+    el("btn-minha-remarcar").addEventListener("click", function () {
+      if (!consultada) return avisar("Consulte a reserva primeiro.");
+      if (!V1.podeRemarcar(consultada.reserva.estado)) {
+        return avisar("Esta reserva não pode ser remarcada por aqui.");
+      }
+      avisar("");
+      var botao = el("btn-minha-remarcar");
+      var atual = consultada;
+      botao.disabled = true;
+
+      agendaNova.catalogo().then(function (catalogo) {
+        var filtro = V1.horariosDaReserva(atual.reserva, catalogo);
+        if (!filtro) {
+          throw { mensagem: "Não consegui conferir os horários dessa reserva. Fale com o barbeiro pelo WhatsApp." };
+        }
+        return agendaNova.profissionalDaReserva(filtro.servicoIds, filtro.profissionalNome).then(function (id) {
+          filtro.profissionalId = id;
+          return filtro;
+        });
+      }).then(function (filtro) {
+        if (consultada !== atual) return;        // mudou o codigo ou o telefone no meio
+        novo.filtro = filtro;
+        novo.dia = null;
+        novo.hora = null;
+        el("minha-horas").textContent = "";
+        desenharDiasDaRemarcacao();
+        el("minha-remarcar").hidden = false;
+      }).then(null, function (falha) {
+        avisar(textoDaFalha(falha));
+      }).then(function () {
+        if (consultada === atual) botao.disabled = !V1.podeRemarcar(atual.reserva.estado);
+      });
+    });
+
+    el("btn-minha-confirmar-remarcar").addEventListener("click", function () {
+      if (!consultada || !novo.dia || !novo.hora) return avisar("Escolha o novo dia e o novo horário.");
+      var botao = el("btn-minha-confirmar-remarcar");
+      var atual = consultada;
+      avisar("");
+      botao.disabled = true;
+
+      agendaNova.remarcar(atual.codigo, atual.telefone, novo.dia, novo.hora).then(function (reserva) {
+        consultada = { codigo: atual.codigo, telefone: atual.telefone, reserva: reserva };
+        mostrarReserva(reserva);
+        avisar("", "Reserva remarcada.");
+      }, function (falha) {
+        avisar(textoDaFalha(falha));
+        if (falha && falha.tipo === "conflito") carregarHorasDaRemarcacao();   // horario acabou de ser ocupado
+        else botao.disabled = !novo.hora;
+      });
+    });
+
+    // Reserva encerrada sem atendimento: volta para o inicio do agendamento.
+    el("btn-novo-horario").addEventListener("click", function () {
+      irPara("agendar");
     });
   }
 
@@ -1013,17 +1350,16 @@
     var fim = paraHora(emMinutos(dados.hora) + Number(duracao));
 
     var html = "";
-    html += '<div class="recibo-linha"><span>Servico</span><span>' + escapar(dados.servico) + "</span></div>";
+    html += '<div class="recibo-linha"><span>Serviço</span><span>' + escapar(dados.servico) + "</span></div>";
     html += '<div class="recibo-linha"><span>Quando</span><span>' +
-            escapar(dataPorExtenso(dados.dia) + ", " + dados.hora + " as " + fim) + "</span></div>";
+            escapar(dataPorExtenso(dados.dia) + ", " + dados.hora + " às " + fim) + "</span></div>";
     html += '<div class="recibo-linha"><span>Local</span><span>' +
             escapar(dados.local === "domicilio" ? "Na sua casa" : "Na barbearia") + "</span></div>";
     html += '<div class="recibo-linha"><span>Total</span><span>' + escapar(dinheiro(dados.total)) + "</span></div>";
 
     el("sucesso-detalhe").innerHTML = html;
     el("link-zap").href = link;
-    el("tela-sucesso").hidden = false;
-    esconderBarra();
+    abrirSucesso();
 
     // Leva o cliente direto pro WhatsApp; o botao fica de reserva
     // caso o navegador bloqueie o redirecionamento.
@@ -1078,8 +1414,8 @@
       : "faz " + Math.round(dias / 30) + " meses";
 
     el("memoria-texto").innerHTML =
-      escapar(cliente.nome ? cliente.nome.split(" ")[0] : "Voce") +
-      ", seu ultimo corte foi <b>" + escapar(ultimo.servico) + "</b>, " + escapar(quando) + ".";
+      escapar(cliente.nome ? cliente.nome.split(" ")[0] : "Você") +
+      ", seu último corte foi <b>" + escapar(ultimo.servico) + "</b>, " + escapar(quando) + ".";
 
     var servico = CONFIG.servicos.filter(function (s) { return s.id === ultimo.servicoId; })[0];
     el("btn-repetir-corte").hidden = !servico;
@@ -1164,12 +1500,12 @@
     })
       .then(function (r) { return r.json().then(function (c) { return { ok: r.ok, corpo: c }; }); })
       .then(function (res) {
-        if (!res.ok) return mostrarErroCodigo(res.corpo.erro || "Nao consegui enviar agora.");
+        if (!res.ok) return mostrarErroCodigo(res.corpo.erro || "Não consegui enviar agora.");
         el("codigo-passo").hidden = false;
-        el("codigo-aviso").textContent = res.corpo.mensagem || "Codigo enviado.";
+        el("codigo-aviso").textContent = res.corpo.mensagem || "Código enviado.";
         el("codigo-campos").children[0].focus();
       })
-      .catch(function () { mostrarErroCodigo("Nao consegui falar com o servidor."); })
+      .catch(function () { mostrarErroCodigo("Não consegui falar com o servidor."); })
       .then(function () {
         botao.disabled = false;
         botao.querySelector("span").textContent = "Enviar de novo";
@@ -1178,7 +1514,7 @@
 
   function confirmarCodigo() {
     var codigo = lerCodigoDigitado();
-    if (codigo.length !== 6) return mostrarErroCodigo("Digite os seis numeros.");
+    if (codigo.length !== 6) return mostrarErroCodigo("Digite os seis números.");
 
     mostrarErroCodigo("");
     var botao = el("btn-confirmar-codigo");
@@ -1195,12 +1531,12 @@
     })
       .then(function (r) { return r.json().then(function (c) { return { ok: r.ok, corpo: c }; }); })
       .then(function (res) {
-        if (!res.ok) return mostrarErroCodigo(res.corpo.erro || "Codigo errado.");
+        if (!res.ok) return mostrarErroCodigo(res.corpo.erro || "Código errado.");
         gravarChave(res.corpo.chave);
         el("codigo-passo").hidden = true;
         aplicarCliente(res.corpo.cliente);
       })
-      .catch(function () { mostrarErroCodigo("Nao consegui falar com o servidor."); })
+      .catch(function () { mostrarErroCodigo("Não consegui falar com o servidor."); })
       .then(function () { botao.disabled = false; });
   }
 
@@ -1275,8 +1611,8 @@
 
     el("status-ponto").classList.toggle("fechado", !aberto);
     el("status-aberto").innerHTML = aberto
-      ? "<b>Aberto agora</b> &middot; fecha as " + CONFIG.fechamento
-      : "<b>Fechado</b> &middot; abre as " + CONFIG.abertura;
+      ? "<b>Aberto agora</b> &middot; fecha às " + CONFIG.fechamento
+      : "<b>Fechado</b> &middot; abre às " + CONFIG.abertura;
   }
 
   // Quantos horarios ainda cabem hoje, de verdade, vindo da agenda.
@@ -1302,7 +1638,7 @@
       var iso = paraISO(amanha);
       buscarOcupados(iso).then(function (ocupadosAmanha) {
         el("dado-livres").textContent = horariosLivres(menor, iso, ocupadosAmanha).length;
-        el("dado-livres-rotulo").textContent = "Livres amanha";
+        el("dado-livres-rotulo").textContent = "Livres amanhã";
       });
     });
   }
@@ -1329,7 +1665,7 @@
       }
       return horariosDaCapa(paraISO(amanha)).then(function (deAmanha) {
         el("dado-livres").textContent = deAmanha.length;
-        el("dado-livres-rotulo").textContent = "Livres amanha";
+        el("dado-livres-rotulo").textContent = "Livres amanhã";
       });
     });
   }
@@ -1458,7 +1794,7 @@
 
     el("rodape-horario").textContent =
       ((CONFIG.diasFechados || []).length ? "Consulte os dias" : "Todos os dias") +
-      ", das " + CONFIG.abertura + " as " + CONFIG.fechamento;
+      ", das " + CONFIG.abertura + " às " + CONFIG.fechamento;
 
     if (CONFIG.instagram) {
       var insta = el("rodape-insta");
@@ -1470,9 +1806,9 @@
     if (CONFIG.domicilioAtivo) {
       el("valor-domicilio").textContent = "+ " + dinheiro(CONFIG.taxaDomicilio);
       el("destaque-domicilio").textContent =
-        "Atendimento a domicilio por " + dinheiro(CONFIG.taxaDomicilio) + " a mais. Ele leva tudo.";
+        "Atendimento a domicílio por " + dinheiro(CONFIG.taxaDomicilio) + " a mais. Ele leva tudo.";
     } else {
-      el("dado-domicilio").textContent = "Nao";
+      el("dado-domicilio").textContent = "Não";
       el("domicilio-secao").hidden = true;
       el("destaque-domicilio").textContent = "Atendimento na barbearia.";
     }
@@ -1512,7 +1848,7 @@
       preencherTextos();
       montarTela();
       ligarMinhaReserva();
-      el("aviso-local").textContent = "A agenda nao respondeu agora. Tente de novo em instantes.";
+      el("aviso-local").textContent = "A agenda não respondeu agora. Tente de novo em instantes.";
       el("aviso-local").hidden = false;
       atualizarBotaoConfirmar();
     });
@@ -1527,6 +1863,7 @@
     ligarRevelacoes();
     ligarLuz();
     ligarSumicoDaBarra();
+    ligarJanelaDeSucesso();
     ligarAvisoDeConexao();
 
     setInterval(atualizarStatus, 60000);
