@@ -1628,3 +1628,7 @@ a { color: inherit; text-decoration: none; }
 /* O título da janela de sucesso recebe o foco ao abrir (para o leitor de tela
    anunciar a janela), mas não é um controle: sem anel nele. */
 .recibo h2:focus { outline: none; }
+
+/* ---- página 404 ---------------------------------------------------------- */
+
+.pagina-404 p { color: var(--fumaca); margin-bottom: 1.6rem; max-width: 36rem; }
