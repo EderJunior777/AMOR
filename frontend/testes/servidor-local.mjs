@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { BlobsServer } from "@netlify/blobs/server";
 
 // fileURLToPath (e nao .pathname) para funcionar no Windows: .pathname
-// devolve "/C:/Users/..." e o join depois monta um caminho invalido.
+// devolve "/C:/pasta/..." (com a letra do disco) e o join depois monta um caminho invalido.
 const RAIZ = fileURLToPath(new URL("..", import.meta.url));
 const PORTA = Number(process.env.PORT) || 8888;
 
