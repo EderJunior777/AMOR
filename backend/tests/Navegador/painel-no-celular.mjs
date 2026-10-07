@@ -28,6 +28,9 @@
      PAINEL_PULAR_ESPERA 1 = nao espera os ~30 s do relogio da atualizacao automatica
    Uso:  node tests/Navegador/painel-no-celular.mjs
    Saida: uma linha por verificacao (OK/FALHOU); codigo de saida 1 se algo falhar.
+   Limite de tentativas (login do painel ou API, resposta 429): a verificacao
+   falha na hora com "limite de tentativas atingido, espere X min", em vez de
+   esperar uma tela que nao vem. Os limites nao sao afrouxados aqui.
    ========================================================================= */
 
 import { createRequire } from 'node:module';
@@ -85,10 +88,57 @@ async function verificar(descricao, funcao) {
   } catch (erro) {
     falhas += 1;
     console.log(`  FALHOU  ${descricao}\n          ${String(erro && erro.message ? erro.message : erro).split('\n')[0]}`);
+    // Limite atingido: o resto da rodada (e o outro navegador, mesmo IP) so
+    // esperaria telas que nao vem. Para tudo (tratado no fim do arquivo).
+    if (erro && erro.limite) { throw erro; }
   }
 }
 
 function afirmar(condicao, mensagem) { if (!condicao) { throw new Error(mensagem); } }
+
+/* ------------------------------------------------- limite de tentativas */
+
+// Texto da tela de bloqueio do painel (LoginController e o limite da entrada).
+const MENSAGEM_BLOQUEIO = 'Muitas tentativas';
+
+function erroDeLimite(segundos) {
+  const minutos = Number.isFinite(segundos) && segundos > 0 ? Math.ceil(segundos / 60) : null;
+  const erro = new Error(`limite de tentativas atingido, espere ${minutos === null ? 'alguns' : minutos} min`);
+  erro.limite = true;
+  return erro;
+}
+
+// Guarda o Retry-After da ultima resposta 429 que a pagina recebeu.
+const ultimo429 = new WeakMap();
+function vigiarLimite(pagina) {
+  pagina.on('response', (resposta) => {
+    if (resposta.status() === 429) { ultimo429.set(pagina, Number(resposta.headers()['retry-after'])); }
+  });
+}
+
+async function falharSeBloqueado(pagina) {
+  if (await pagina.getByText(MENSAGEM_BLOQUEIO).first().isVisible().catch(() => false)) {
+    throw erroDeLimite(ultimo429.get(pagina));
+  }
+}
+
+/** Abre a tela de entrada; a propria tela tem limite por IP (429). */
+async function abrirEntrada(pagina) {
+  const resposta = await pagina.goto('/painel/entrar');
+  if (resposta && resposta.status() === 429) { throw erroDeLimite(Number(resposta.headers()['retry-after'])); }
+}
+
+/** Login que deve entrar: espera os Pedidos OU a tela de bloqueio, o que vier primeiro. */
+async function entrarNoPainel(pagina, email, senha) {
+  await pagina.fill('input[name=email]', email);
+  await pagina.fill('input[name=senha]', senha);
+  await pagina.click('button[type=submit]');
+  await Promise.race([
+    pagina.waitForURL(/\/painel\/?$/),
+    pagina.getByText(MENSAGEM_BLOQUEIO).first().waitFor({ state: 'visible' }),
+  ]);
+  await falharSeBloqueado(pagina);
+}
 
 /**
  * Espera o texto aparecer. Depois de um POST que redireciona para a MESMA
@@ -97,10 +147,11 @@ function afirmar(condicao, mensagem) { if (!condicao) { throw new Error(mensagem
  */
 async function esperarTexto(pagina, texto) {
   try {
-    await pagina.getByText(texto).first().waitFor({ state: 'visible', timeout: 10000 });
+    await pagina.getByText(texto).or(pagina.getByText(MENSAGEM_BLOQUEIO)).first().waitFor({ state: 'visible', timeout: 10000 });
   } catch {
     throw new Error(`não apareceu "${texto}" em 10 s`);
   }
+  await falharSeBloqueado(pagina);
 }
 
 /* ------------------------------------------------------- pedidos pela API */
@@ -111,6 +162,7 @@ async function api(caminho, opcoes = {}) {
     headers: { accept: 'application/json', 'content-type': 'application/json', ...(opcoes.headers || {}) },
   });
   const corpo = await resposta.json().catch(() => ({}));
+  if (resposta.status === 429) { throw erroDeLimite(Number(resposta.headers.get('retry-after'))); }
   return { status: resposta.status, corpo };
 }
 
@@ -166,6 +218,7 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
     document.addEventListener('securitypolicyviolation', (e) => window.__violacoesCsp.push(`${e.violatedDirective} ${e.blockedURI}`));
   });
   const pagina = await contexto.newPage();
+  vigiarLimite(pagina);
   pagina.on('pageerror', (e) => problemas.push(`erro de JavaScript: ${e.message}`));
   // O WebKit do Playwright injeta um estilo inline para fotografar a pagina e a CSP
   // do painel (style-src 'self') o recusa: a mensagem aparece SO depois de uma
@@ -186,7 +239,7 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
   const cliente2 = await criarPedido(`Cliente Navegador B ${apelido} ${CORRIDA}`);
 
   await verificar('a tela de entrada cabe em 390 px, com campos grandes e sem zoom no iPhone', async () => {
-    await pagina.goto('/painel/entrar');
+    await abrirEntrada(pagina);
     afirmar(await semRolagemLateral(), 'a página tem rolagem lateral');
     const tamanhoDaFonte = await pagina.locator('input[name=email]').evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
     afirmar(tamanhoDaFonte >= 16, `fonte do campo ${tamanhoDaFonte}px (<16px: o iPhone daria zoom)`);
@@ -204,9 +257,7 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
   });
 
   await verificar('login certo leva aos Pedidos com o contador no titulo', async () => {
-    await pagina.fill('input[name=email]', EMAIL);
-    await pagina.fill('input[name=senha]', SENHA);
-    await Promise.all([pagina.waitForURL(/\/painel\/?$/), pagina.click('button[type=submit]')]);
+    await entrarNoPainel(pagina, EMAIL, SENHA);
     afirmar(/^\(\d+\) Pedidos/.test(await pagina.title()), `título "${await pagina.title()}" sem o contador`);
     afirmar(await pagina.locator('.cartao', { hasText: cliente1.nome }).count() === 1, 'o pedido do cliente A não apareceu');
     afirmar(await semRolagemLateral(), 'a página tem rolagem lateral');
@@ -296,10 +347,8 @@ async function sobreNavegador(rotulo, motor, opcoesDoContexto, apelido) {
   if (DONO_EMAIL && DONO_SENHA) {
     await verificar('equipe: criar acesso mostra a senha uma vez e o Copiar funciona sem HTTPS', async () => {
       await pagina.addInitScript(() => { Object.defineProperty(window, 'isSecureContext', { value: false }); });
-      await pagina.goto('/painel/entrar');
-      await pagina.fill('input[name=email]', DONO_EMAIL);
-      await pagina.fill('input[name=senha]', DONO_SENHA);
-      await Promise.all([pagina.waitForURL(/\/painel\/?$/), pagina.click('button[type=submit]')]);
+      await abrirEntrada(pagina);
+      await entrarNoPainel(pagina, DONO_EMAIL, DONO_SENHA);
       await pagina.goto('/painel/equipe');
       await pagina.fill('input[name=nome]', `Recepcao Navegador ${apelido}`);
       await pagina.fill('input[name=email]', `recepcao.${Date.now()}.${apelido}@exemplo.com`);
@@ -337,14 +386,19 @@ if (!EMAIL || !SENHA) {
 const { modulo, comWebkit } = carregarPlaywright();
 console.log(`Painel em ${BASE}; capturas em ${PASTA}`);
 
-if (comWebkit) {
-  await sobreNavegador('iPhone (WebKit)', modulo.webkit, {
-    ...modulo.devices['iPhone 13'], viewport: VIEWPORT,
-  }, 'iphone-webkit');
-} else {
-  aviso('Pulando o teste em iPhone (WebKit): defina PLAYWRIGHT_DIR.');
+try {
+  if (comWebkit) {
+    await sobreNavegador('iPhone (WebKit)', modulo.webkit, {
+      ...modulo.devices['iPhone 13'], viewport: VIEWPORT,
+    }, 'iphone-webkit');
+  } else {
+    aviso('Pulando o teste em iPhone (WebKit): defina PLAYWRIGHT_DIR.');
+  }
+  await sobreNavegador('Chrome (Chromium)', modulo.chromium, { isMobile: true, hasTouch: true, deviceScaleFactor: 3 }, 'chrome');
+} catch (erro) {
+  if (erro && erro.limite) { sair(`${erro.message}. Rodada interrompida (nenhum limite foi afrouxado).`, 1); }
+  throw erro;
 }
-await sobreNavegador('Chrome (Chromium)', modulo.chromium, { isMobile: true, hasTouch: true, deviceScaleFactor: 3 }, 'chrome');
 
 console.log(falhas === 0 ? '\nTudo certo.' : `\n${falhas} verificação(ões) falharam.`);
 process.exit(falhas === 0 ? 0 : 1);
