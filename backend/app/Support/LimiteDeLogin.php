@@ -22,6 +22,13 @@ use InvalidArgumentException;
  * contar() acontece ANTES de conferir a senha: a conferencia (bcrypt) demora
  * centenas de ms, e requisicoes paralelas passariam todas pela checagem antes
  * de qualquer contagem. Com a contagem antes, so as primeiras N conferem.
+ *
+ * Os limites contam so FALHAS: no login certo, loginCerto() zera o par
+ * e-mail + IP e DEVOLVE a tentativa daquele pedido nos contadores de e-mail e
+ * de IP (que nao sao zerados: um login certo nao apaga as falhas de outros
+ * e-mails no mesmo IP, nem as de outros IPs no mesmo e-mail). Sem a
+ * devolucao, logins certos seguidos do mesmo IP (uma recepcao, um teste)
+ * esgotariam o teto do IP sem nenhuma falha.
  * Janela FIXA, aberta na primeira tentativa. Valor invalido de configuracao
  * falha fechado (excecao), nunca "sem limite".
  */
@@ -57,10 +64,23 @@ final class LimiteDeLogin
         return $esperas === [] ? null : max($esperas);
     }
 
-    /** Login certo: zera as tentativas do par e-mail + IP (o teto por e-mail e o do IP seguem). */
-    public static function zerar(string $email, string $ip): void
+    /**
+     * Login certo: zera as tentativas do par e-mail + IP e devolve, nos
+     * contadores de e-mail e de IP, a tentativa que contar() registrou para
+     * este pedido. As falhas anteriores nesses dois contadores seguem valendo.
+     */
+    public static function loginCerto(string $email, string $ip): void
     {
         RateLimiter::clear(self::chaveDoPar($email, $ip));
+
+        $janela = self::inteiro('login_janela_minutos') * 60;
+        foreach ([self::chaveDoEmail($email), self::chaveDoIp($ip)] as $chave) {
+            // So devolve o que existe: se a janela acabou entre contar() e aqui,
+            // decrement() criaria um contador negativo (tentativa de brinde).
+            if ((int) RateLimiter::attempts($chave) > 0) {
+                RateLimiter::decrement($chave, $janela);
+            }
+        }
     }
 
     /**
@@ -95,13 +115,23 @@ final class LimiteDeLogin
     {
         return [
             [self::chaveDoPar($email, $ip), self::inteiro('login_max_falhas_por_email_e_ip')],
-            [ChaveDeLimite::de('painel-login-email', self::normalizarEmail($email)), self::inteiro('login_max_falhas_por_email_total')],
-            [ChaveDeLimite::de('painel-login-ip', $ip), self::inteiro('login_max_falhas_por_ip')],
+            [self::chaveDoEmail($email), self::inteiro('login_max_falhas_por_email_total')],
+            [self::chaveDoIp($ip), self::inteiro('login_max_falhas_por_ip')],
         ];
     }
 
     private static function chaveDoPar(string $email, string $ip): string
     {
         return ChaveDeLimite::de('painel-login-par', self::normalizarEmail($email), $ip);
+    }
+
+    private static function chaveDoEmail(string $email): string
+    {
+        return ChaveDeLimite::de('painel-login-email', self::normalizarEmail($email));
+    }
+
+    private static function chaveDoIp(string $ip): string
+    {
+        return ChaveDeLimite::de('painel-login-ip', $ip);
     }
 }

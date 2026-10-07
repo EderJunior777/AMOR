@@ -73,7 +73,7 @@ final class LoginController extends Controller
                 ->withInput(['email' => $email]);
         }
 
-        LimiteDeLogin::zerar($email, $ip);
+        LimiteDeLogin::loginCerto($email, $ip);
         Auth::login($usuario);
         $request->session()->regenerate();
         // Hash com custo antigo (rounds mudou depois): refeito agora, com a senha que acabou de conferir.

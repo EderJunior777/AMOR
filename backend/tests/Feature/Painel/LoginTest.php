@@ -367,6 +367,37 @@ class LoginTest extends TestCase
         $this->entrar($usuario->email, self::SENHA, '192.0.2.51')->assertRedirect('/painel');
     }
 
+    public function test_vinte_e_cinco_logins_certos_seguidos_do_mesmo_ip_nao_bloqueiam(): void
+    {
+        // Os limites contam so falhas: o login certo devolve a tentativa no
+        // contador do IP (teto 20) e no do e-mail (teto 30).
+        $usuario = $this->usuario();
+
+        for ($i = 0; $i < 25; $i++) {
+            $this->entrar($usuario->email, self::SENHA, '192.0.2.60')->assertRedirect('/painel');
+            $this->post('/painel/sair');
+        }
+
+        $this->entrar($usuario->email, self::SENHA, '192.0.2.60')->assertRedirect('/painel');
+        $this->assertAuthenticatedAs($usuario);
+    }
+
+    public function test_falhas_entre_logins_certos_bloqueiam_o_ip_nos_mesmos_vinte(): void
+    {
+        $usuario = $this->usuario();
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->entrar("alvo{$i}@exemplo.com", 'qualquer-senha-12', '192.0.2.61');
+            if ($i % 5 === 4 && $i < 19) { // logins certos depois da 5a, 10a e 15a falhas
+                $this->entrar($usuario->email, self::SENHA, '192.0.2.61')->assertRedirect('/painel');
+                $this->post('/painel/sair');
+            }
+        }
+
+        $this->entrar($usuario->email, self::SENHA, '192.0.2.61')->assertStatus(429);
+        $this->assertGuest();
+    }
+
     public function test_login_certo_zera_as_falhas_do_email(): void
     {
         $usuario = $this->usuario();
