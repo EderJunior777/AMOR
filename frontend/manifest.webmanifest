@@ -1,7 +1,7 @@
 {
   "name": "Barbearia - Agendamento",
   "short_name": "Barbearia",
-  "description": "Escolha o servico, marque o horario e confirme no WhatsApp.",
+  "description": "Escolha o serviço, marque o horário e confirme no WhatsApp.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "./index.html",
@@ -19,7 +19,7 @@
   ],
   "shortcuts": [
     {
-      "name": "Marcar horario",
+      "name": "Marcar horário",
       "short_name": "Marcar",
       "url": "./index.html#agendar",
       "icons": [{ "src": "assets/icone-192.png", "sizes": "192x192" }]

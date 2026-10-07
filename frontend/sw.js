@@ -10,18 +10,20 @@
    funcionar sem internet.
    ========================================================================= */
 
-const VERSAO = "barbearia-v2";
+const VERSAO = "barbearia-v3";
 
 const ESSENCIAIS = [
   "./",
   "./index.html",
   "./agenda.html",
+  "./404.html",
   "./assets/styles.css",
   "./assets/fontes.css",
   "./assets/config.js",
   "./assets/agenda-v1.js",
   "./assets/app.js",
   "./assets/admin.js",
+  "./assets/registrar-sw.js",
   "./assets/icone.svg",
   "./assets/fontes/inter.woff2",
   "./assets/fontes/instrument-serif.woff2",

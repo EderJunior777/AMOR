@@ -2,8 +2,8 @@
    Painel do barbeiro: os agendamentos do dia, com o resumo do caixa e o
    botao de liberar horario quando alguem desmarca.
 
-   O PIN e conferido no servidor (variavel PIN_PAINEL na Netlify; enquanto
-   voce nao trocar, o padrao e 1234).
+   O PIN e conferido no servidor (variavel PIN_PAINEL na Netlify, obrigatoria:
+   sem ela o painel responde 503).
    ========================================================================= */
 
 (function () {
@@ -92,7 +92,9 @@
       var caixa = el("erro-pin");
       caixa.textContent = falha && falha.status === 401
         ? "PIN incorreto."
-        : "Nao consegui falar com a agenda. O site precisa estar publicado na Netlify.";
+        : falha && falha.status === 503
+          ? "Painel não configurado. Defina a variável PIN_PAINEL na Netlify."
+          : "Não consegui falar com a agenda. O site precisa estar publicado na Netlify.";
       caixa.hidden = false;
     });
   }
@@ -100,12 +102,12 @@
   function carregar(dia) {
     diaAtual = dia;
     el("campo-dia").value = dia;
-    el("lista-agendamentos").innerHTML = '<div class="esqueleto" style="height:6rem"></div>';
+    el("lista-agendamentos").innerHTML = '<div class="esqueleto esqueleto-alto"></div>';
 
     buscar(dia)
       .then(desenhar)
       .catch(function () {
-        el("lista-agendamentos").innerHTML = '<div class="vazio">Nao consegui carregar esse dia.</div>';
+        el("lista-agendamentos").innerHTML = '<div class="vazio">Não consegui carregar esse dia.</div>';
       });
   }
 
@@ -120,7 +122,7 @@
     }, 0));
 
     if (!lista.length) {
-      caixa.innerHTML = '<div class="vazio"><strong>Dia livre.</strong>Ninguem marcou ainda.</div>';
+      caixa.innerHTML = '<div class="vazio"><strong>Dia livre.</strong>Ninguém marcou ainda.</div>';
       return;
     }
 
@@ -142,7 +144,7 @@
       item.innerHTML =
         "<div>" +
           '<div class="agendamento-hora">' + escapar(a.hora) + "</div>" +
-          '<div class="agendamento-fim">ate ' + escapar(fim) + "</div>" +
+          '<div class="agendamento-fim">até ' + escapar(fim) + "</div>" +
         "</div>" +
         '<div class="agendamento-corpo">' +
           '<div class="agendamento-nome">' + escapar(a.nome) +
@@ -154,7 +156,7 @@
             escapar(a.duracao) + " min - <b>" + escapar(dinheiro(a.total || a.preco || 0)) + "</b></p>" +
           '<p class="agendamento-dado">' + escapar(telefoneBonito(a.telefone)) + "</p>" +
           (casa
-            ? '<p class="agendamento-dado">Endereco: ' + escapar(a.endereco) +
+            ? '<p class="agendamento-dado">Endereço: ' + escapar(a.endereco) +
               (a.regiaoNome ? " (" + escapar(a.regiaoNome) + ")" : "") + "</p>"
             : "") +
           (saida
@@ -164,12 +166,12 @@
           (a.observacao ? '<p class="agendamento-dado">Obs: ' + escapar(a.observacao) + "</p>" : "") +
           '<div class="acoes">' +
             '<a class="botao botao-zap" target="_blank" rel="noopener" href="' + escapar(zap) + '"><span>Chamar no zap</span></a>' +
-            '<button class="botao" type="button"><span>Liberar horario</span></button>' +
+            '<button class="botao" type="button"><span>Liberar horário</span></button>' +
           "</div>" +
         "</div>";
 
       item.querySelector(".acoes button").addEventListener("click", function () {
-        if (!window.confirm("Liberar o horario de " + a.hora + " (" + a.nome + ")?")) return;
+        if (!window.confirm("Liberar o horário de " + a.hora + " (" + a.nome + ")?")) return;
         liberar(a.grupo);
       });
 
@@ -187,7 +189,7 @@
       })
       .catch(function () {
         var caixa = el("erro-agenda");
-        caixa.textContent = "Nao consegui liberar esse horario. Tente de novo.";
+        caixa.textContent = "Não consegui liberar esse horário. Tente de novo.";
         caixa.hidden = false;
       });
   }

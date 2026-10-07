@@ -22,13 +22,82 @@
   "use strict";
 
   var MENSAGENS = {
-    conflito: "Esse horario acabou de ser ocupado. Escolha outro.",
+    conflito: "Esse horário acabou de ser ocupado. Escolha outro.",
     espera: "Muita gente agendando agora. Tente de novo em instantes.",
-    rede: "Nao consegui falar com a agenda. Confira a internet e tente de novo.",
-    erro: "Nao consegui concluir agora. Tente de novo em instantes.",
+    rede: "Não consegui falar com a agenda. Confira a internet e tente de novo.",
+    erro: "Não consegui concluir agora. Tente de novo em instantes.",
     recusa: "Confira os dados e tente de novo.",
-    semProfissional: "Este servico nao esta disponivel agora."
+    semProfissional: "Este serviço não está disponível agora."
   };
+
+  /* Estados que o backend pode devolver em "estado" (App\Enums\EstadoAgendamento
+     e o CHECK do banco: sao exatamente estes 6). Qualquer outro valor, hoje ou
+     no futuro, vira "Em análise": nunca o texto cru da API na tela. */
+  var ESTADO_DESCONHECIDO = "Em análise";
+  var ESTADOS_DA_RESERVA = {
+    solicitado: "Aguardando confirmação do barbeiro",
+    confirmado: "Confirmada",
+    em_atendimento: "Em atendimento",
+    concluido: "Concluída",
+    cancelado: "Cancelada",
+    nao_compareceu: "Não compareceu"
+  };
+
+  function rotuloDoEstado(estado) {
+    return typeof estado === "string" && Object.prototype.hasOwnProperty.call(ESTADOS_DA_RESERVA, estado)
+      ? ESTADOS_DA_RESERVA[estado]
+      : ESTADO_DESCONHECIDO;
+  }
+
+  /* Reserva que acabou sem atendimento: a tela oferece "Marcar novo horário". */
+  function ofereceNovoHorario(estado) {
+    return estado === "cancelado" || estado === "nao_compareceu";
+  }
+
+  /* O cliente só remarca pelo site enquanto a reserva está solicitada. Confirmada
+     exige um novo pedido (a API recusa com remarcacao_exige_novo_pedido). */
+  function podeRemarcar(estado) {
+    return estado === "solicitado";
+  }
+
+  /* O que a API de disponibilidade precisa para a PRÓPRIA reserva. A resposta
+     da reserva não traz ids (lista branca), então serviço e região são achados
+     pelo nome no catálogo da API. Sem par exato: null (a tela não chuta). */
+  function horariosDaReserva(reserva, catalogo) {
+    if (!reserva || !catalogo) return null;
+    var nomes = (reserva.servicos || []).map(function (s) { return s && s.nome; });
+    if (!nomes.length) return null;
+
+    var porNome = function (tabela, nome) {
+      var achado = null;
+      Object.keys(tabela || {}).forEach(function (chave) {
+        if (!achado && tabela[chave] && tabela[chave].nome === nome) achado = tabela[chave];
+      });
+      return achado;
+    };
+
+    var servicoIds = [];
+    for (var i = 0; i < nomes.length; i++) {
+      var servico = porNome(catalogo.servicos, nomes[i]);
+      if (!servico) return null;
+      servicoIds.push(servico.id);
+    }
+
+    var modalidade = reserva.modalidade === "domicilio" ? "domicilio" : "barbearia";
+    var regiaoId = null;
+    if (modalidade === "domicilio") {
+      var regiao = porNome(catalogo.regioes, reserva.regiao_nome);
+      if (!regiao) return null;
+      regiaoId = regiao.id;
+    }
+
+    return {
+      servicoIds: servicoIds,
+      modalidade: modalidade,
+      regiaoId: regiaoId,
+      profissionalNome: reserva.profissional && reserva.profissional.nome_exibicao || null
+    };
+  }
 
   var ESPERA_ANTES_DE_REENVIAR_MS = 800;
   var TEMPO_LIMITE_MS = 20000;
@@ -40,14 +109,35 @@
     return { falha: true, tipo: tipo, status: status, codigo: codigo || null, mensagem: mensagem };
   }
 
-  function interpretar(status, corpo) {
+  /* Segundos do cabeçalho Retry-After (a API manda em 429 e 503), ou null. */
+  function segundosDeEspera(cabecalhos) {
+    var valor = cabecalhos && typeof cabecalhos.get === "function" ? cabecalhos.get("retry-after") : null;
+    var segundos = Number(valor);
+    return valor !== null && valor !== "" && isFinite(segundos) && segundos > 0 ? segundos : null;
+  }
+
+  /* Espera curta (segundos): "em instantes". Espera longa, como o limite por
+     hora (a API manda Retry-After de minutos): diz quanto falta, em vez de
+     prometer "instantes" para quem vai esperar um quarto de hora. */
+  function mensagemDeEspera(segundos) {
+    if (segundos === null || segundos < 120) return MENSAGENS.espera;
+    var minutos = Math.ceil(segundos / 60);
+    return "Muitas tentativas por agora. Tente de novo em cerca de " + minutos + " minutos.";
+  }
+
+  function interpretar(status, corpo, cabecalhos) {
     corpo = corpo || {};
     if (status === 409) return falha("conflito", status, corpo.codigo, MENSAGENS.conflito);
     if (status === 422) {
       var mensagem = typeof corpo.mensagem === "string" && corpo.mensagem ? corpo.mensagem : MENSAGENS.recusa;
       return falha("recusa", status, corpo.codigo, mensagem);
     }
-    if (status === 429 || status === 503) return falha("espera", status, corpo.codigo, MENSAGENS.espera);
+    if (status === 429 || status === 503) {
+      var espera = segundosDeEspera(cabecalhos);
+      var f = falha("espera", status, corpo.codigo, mensagemDeEspera(espera));
+      f.esperaSegundos = espera;
+      return f;
+    }
     return falha("erro", status, corpo.codigo, MENSAGENS.erro);
   }
 
@@ -121,7 +211,7 @@
               function () { desligarRelogio(); throw falha("rede", 0, null, MENSAGENS.rede); })
         .then(function (resposta) {
           return resposta.json().then(null, function () { return {}; }).then(function (dados) {
-            if (!resposta.ok) throw interpretar(resposta.status, dados);
+            if (!resposta.ok) throw interpretar(resposta.status, dados, resposta.headers);
             return { status: resposta.status, dados: dados };
           });
         });
@@ -163,6 +253,24 @@
             var lista = r.dados.profissionais || [];
             if (!lista.length) throw falha("recusa", 422, "profissional_indisponivel", MENSAGENS.semProfissional);
             return lista[0].id;
+          })
+          .then(null, function (erro) { delete profissionais[chave]; throw erro; });
+      }
+      return profissionais[chave];
+    }
+
+    /* O profissional DA RESERVA (pelo nome de exibição) entre os que fazem
+       todos os serviços; sem par, o primeiro. A remarcação mantém o mesmo
+       profissional, então os horários têm que ser os dele. */
+    function profissionalDaReserva(servicoIds, nomeExibicao) {
+      var chave = "r:" + servicoIds.slice().sort().join(",") + ":" + (nomeExibicao || "");
+      if (!profissionais[chave]) {
+        profissionais[chave] = pedir("GET", "/profissionais" + consulta({ servicos: servicoIds }))
+          .then(function (r) {
+            var lista = r.dados.profissionais || [];
+            if (!lista.length) throw falha("recusa", 422, "profissional_indisponivel", MENSAGENS.semProfissional);
+            var dele = lista.filter(function (p) { return p.nome_exibicao === nomeExibicao; })[0];
+            return (dele || lista[0]).id;
           })
           .then(null, function (erro) { delete profissionais[chave]; throw erro; });
       }
@@ -212,6 +320,7 @@
     return {
       catalogo: catalogo,
       profissionalPara: profissionalPara,
+      profissionalDaReserva: profissionalDaReserva,
       horarios: horarios,
       reservar: reservar,
       consultar: consultar,
@@ -223,9 +332,16 @@
   var AgendaV1 = {
     criar: criar,
     interpretar: interpretar,
+    mensagemDeEspera: mensagemDeEspera,
     respostaDefinitiva: respostaDefinitiva,
     novaChave: novaChave,
     tentativaPara: tentativaPara,
+    rotuloDoEstado: rotuloDoEstado,
+    ofereceNovoHorario: ofereceNovoHorario,
+    podeRemarcar: podeRemarcar,
+    horariosDaReserva: horariosDaReserva,
+    ESTADOS_DA_RESERVA: ESTADOS_DA_RESERVA,
+    ESTADO_DESCONHECIDO: ESTADO_DESCONHECIDO,
     MENSAGENS: MENSAGENS
   };
 

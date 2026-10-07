@@ -26,13 +26,21 @@
      DELETE ?dia=...&grupo=...&pin=XXXX  -> libera um horario
    ========================================================================= */
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import { getStore } from "@netlify/blobs";
 import CONFIG from "../../assets/config.js";
 import { registrarAtendimento, verificacaoLigada } from "./cliente.mjs";
 
-// PIN do painel do barbeiro. Para trocar, crie a variavel de ambiente
-// PIN_PAINEL na Netlify (Site settings > Environment variables).
-const PIN_PAINEL = process.env.PIN_PAINEL || "1234";
+// PIN do painel do barbeiro: variavel de ambiente PIN_PAINEL na Netlify
+// (Site settings > Environment variables). OBRIGATORIA: sem ela o painel
+// recusa tudo (503) em vez de cair num PIN conhecido. Lida a cada pedido.
+const pinConfigurado = () => String(process.env.PIN_PAINEL || "");
+
+// Compara os dois por hash (mesmo tamanho) em tempo constante.
+const hash = (texto) => createHash("sha256").update(String(texto)).digest();
+const pinConfere = (informado) => timingSafeEqual(hash(informado), hash(pinConfigurado()));
+
+const painelNaoConfigurado = () => json({ erro: "Painel não configurado" }, 503);
 
 const PASSO = Number(CONFIG.intervaloMinutos) || 30;
 const MAX_DIAS = Number(CONFIG.diasParaFrente) || 30;
@@ -123,26 +131,26 @@ function validarReserva(corpo) {
   const dia = limpar(corpo.dia, 10);
   const hora = limpar(corpo.hora, 5);
 
-  if (!ehDia(dia)) return { erro: "Data invalida." };
-  if (!ehHora(hora)) return { erro: "Horario invalido." };
+  if (!ehDia(dia)) return { erro: "Data inválida." };
+  if (!ehHora(hora)) return { erro: "Horário inválido." };
 
   // O servico vem do config, nao do que o cliente mandou.
   const servico = (CONFIG.servicos || []).find((s) => s.id === limpar(corpo.servicoId, 40));
-  if (!servico) return { erro: "Servico nao encontrado." };
+  if (!servico) return { erro: "Serviço não encontrado." };
 
   const duracao = Number(servico.duracao);
   const inicio = emMinutos(hora);
   const abre = emMinutos(CONFIG.abertura);
   const fecha = emMinutos(CONFIG.fechamento);
 
-  if ((inicio - abre) % PASSO !== 0) return { erro: `Horario fora da grade de ${PASSO} minutos.` };
+  if ((inicio - abre) % PASSO !== 0) return { erro: `Horário fora da grade de ${PASSO} minutos.` };
 
   const hoje = hojeISO();
-  if (dia < hoje) return { erro: "Nao da pra marcar em um dia que ja passou." };
+  if (dia < hoje) return { erro: "Não dá pra marcar em um dia que já passou." };
 
   // Uma pagina aberta de manha nao pode marcar as 09:00 quando ja sao 18:00.
   if (dia === hoje && inicio < agoraEmMinutos() + (Number(CONFIG.antecedenciaMinutos) || 0))
-    return { erro: "Esse horario ja passou. Escolha outro." };
+    return { erro: "Esse horário já passou. Escolha outro." };
   if (dia > somarDias(hoje, MAX_DIAS)) return { erro: "Data muito distante." };
   if ((CONFIG.diasFechados || []).includes(diaDaSemana(dia))) return { erro: "Fechado nesse dia." };
 
@@ -150,22 +158,22 @@ function validarReserva(corpo) {
   if (nome.length < 2) return { erro: "Informe seu nome." };
 
   const telefone = limpar(corpo.telefone, 25);
-  if (telefone.replace(/\D/g, "").length < 10) return { erro: "Informe um telefone valido com DDD." };
+  if (telefone.replace(/\D/g, "").length < 10) return { erro: "Informe um telefone válido com DDD." };
 
   const querDomicilio = corpo.local === "domicilio";
-  if (querDomicilio && !CONFIG.domicilioAtivo) return { erro: "Atendimento a domicilio indisponivel." };
+  if (querDomicilio && !CONFIG.domicilioAtivo) return { erro: "Atendimento a domicílio indisponível." };
 
   const local = querDomicilio ? "domicilio" : "barbearia";
   const endereco = limpar(corpo.endereco, 200);
   if (local === "domicilio" && endereco.length < 5)
-    return { erro: "Para atendimento em casa, informe o endereco." };
+    return { erro: "Para atendimento em casa, informe o endereço." };
 
   // A regiao decide quanto tempo de deslocamento sai da agenda, entao ela
   // e obrigatoria no domicilio e vem sempre do config - nunca do cliente.
   let regiao = null;
   if (local === "domicilio" && (CONFIG.regioes || []).length) {
     regiao = CONFIG.regioes.find((r) => r.id === limpar(corpo.regiao, 40));
-    if (!regiao) return { erro: "Escolha a regiao do atendimento." };
+    if (!regiao) return { erro: "Escolha a região do atendimento." };
   }
 
   const deslocamento = regiao ? Number(regiao.deslocamento) || 0 : 0;
@@ -175,13 +183,13 @@ function validarReserva(corpo) {
   // a sair de casa as 07h15 nem a chegar em casa 20h45.
   if (inicio - deslocamento < abre)
     return deslocamento
-      ? { erro: `Contando ${deslocamento} min de deslocamento, esse horario e cedo demais.` }
-      : { erro: `O atendimento comeca as ${CONFIG.abertura}.` };
+      ? { erro: `Contando ${deslocamento} min de deslocamento, esse horário é cedo demais.` }
+      : { erro: `O atendimento começa às ${CONFIG.abertura}.` };
 
   if (inicio + duracao + deslocamento > fecha)
     return { erro: deslocamento
       ? `Contando ${deslocamento} min de deslocamento, isso passaria das ${CONFIG.fechamento}.`
-      : `Esse servico leva ${duracao} min e nao termina ate as ${CONFIG.fechamento}.` };
+      : `Esse serviço leva ${duracao} min e não termina até as ${CONFIG.fechamento}.` };
 
   const taxa = local === "domicilio" ? Number(CONFIG.taxaDomicilio) || 0 : 0;
 
@@ -245,7 +253,7 @@ async function reservar(corpo) {
     // Checagem otimista: evita gravar metade dos blocos a toa.
     if ((await store.get(k)) !== null) {
       await desfazer(store, gravadas, grupo);
-      return json({ erro: "OCUPADO", mensagem: "Esse horario acabou de ser preenchido." }, 409);
+      return json({ erro: "OCUPADO", mensagem: "Esse horário acabou de ser preenchido." }, 409);
     }
 
     // A trava de verdade: so cria se a chave ainda nao existir.
@@ -257,7 +265,7 @@ async function reservar(corpo) {
 
     if (resultado && resultado.modified === false) {
       await desfazer(store, gravadas, grupo);
-      return json({ erro: "OCUPADO", mensagem: "Esse horario acabou de ser preenchido." }, 409);
+      return json({ erro: "OCUPADO", mensagem: "Esse horário acabou de ser preenchido." }, 409);
     }
 
     gravadas.push(k);
@@ -275,7 +283,7 @@ async function reservar(corpo) {
     const confirmado = await store.get(k, { type: "json" }).catch(() => null);
     if (!confirmado || confirmado.grupo !== grupo) {
       await desfazer(store, gravadas, grupo);
-      return json({ erro: "OCUPADO", mensagem: "Esse horario acabou de ser preenchido." }, 409);
+      return json({ erro: "OCUPADO", mensagem: "Esse horário acabou de ser preenchido." }, 409);
     }
   }
 
@@ -304,8 +312,8 @@ async function desfazer(store, chaves, grupo) {
 }
 
 async function liberar(dia, grupo) {
-  if (!ehDia(dia)) return json({ erro: "Data invalida." }, 400);
-  if (!grupo) return json({ erro: "Agendamento nao informado." }, 400);
+  if (!ehDia(dia)) return json({ erro: "Data inválida." }, 400);
+  if (!grupo) return json({ erro: "Agendamento não informado." }, 400);
 
   const store = loja();
   const { blobs } = await store.list({ prefix: `${dia}__` });
@@ -320,7 +328,7 @@ async function liberar(dia, grupo) {
     }
   }
 
-  if (!apagadas) return json({ erro: "Agendamento nao encontrado." }, 404);
+  if (!apagadas) return json({ erro: "Agendamento não encontrado." }, 404);
   return json({ ok: true, liberados: apagadas });
 }
 
@@ -335,25 +343,31 @@ export default async (req) => {
       if (!ehDia(dia)) return json({ erro: "Informe o dia no formato AAAA-MM-DD." }, 400);
 
       const pin = url.searchParams.get("pin");
-      if (pin !== null && pin !== PIN_PAINEL) return json({ erro: "PIN incorreto." }, 401);
+      if (pin !== null) {
+        if (!pinConfigurado()) return painelNaoConfigurado();
+        if (!pinConfere(pin)) return json({ erro: "PIN incorreto." }, 401);
+      }
 
       return await listarDia(dia, pin !== null);
     }
 
     if (req.method === "POST") {
       const corpo = await req.json().catch(() => null);
-      if (!corpo) return json({ erro: "Requisicao invalida." }, 400);
+      if (!corpo) return json({ erro: "Requisição inválida." }, 400);
       return await reservar(corpo);
     }
 
     if (req.method === "DELETE") {
-      if (url.searchParams.get("pin") !== PIN_PAINEL) return json({ erro: "PIN incorreto." }, 401);
+      if (!pinConfigurado()) return painelNaoConfigurado();
+      if (!pinConfere(url.searchParams.get("pin") ?? "")) return json({ erro: "PIN incorreto." }, 401);
       return await liberar(url.searchParams.get("dia") || "", url.searchParams.get("grupo") || "");
     }
 
-    return json({ erro: "Metodo nao suportado." }, 405);
+    return json({ erro: "Método não suportado." }, 405);
   } catch (e) {
-    return json({ erro: "Erro no servidor da agenda.", detalhe: String(e && e.message) }, 500);
+    // O erro fica no log da funcao; o navegador recebe so a mensagem generica.
+    console.error("[agenda] erro interno:", e);
+    return json({ erro: "Erro no servidor da agenda." }, 500);
   }
 };
 
