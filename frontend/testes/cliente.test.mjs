@@ -34,8 +34,19 @@ process.env.TELEFONE_SAL = "sal-de-teste";
 // Dublê do WhatsApp: guarda o que "seria enviado" em vez de chamar a Meta.
 const enviados = [];
 const fetchOriginal = globalThis.fetch;
+// Ligado, a "Meta" recusa com um corpo que nao pode chegar ao navegador.
+let metaRecusa = false;
+const SEGREDO_DA_META = "conta-interna-wa-7731";
+// Ligado, o armazenamento de blobs recusa tudo (simula erro interno).
+let armazenamentoFora = false;
 globalThis.fetch = async (url, opcoes) => {
+  if (armazenamentoFora && String(url).startsWith(`http://localhost:${port}`)) {
+    return new Response("falha simulada", { status: 400 });
+  }
   if (String(url).includes("graph.facebook.com")) {
+    if (metaRecusa) {
+      return new Response(JSON.stringify({ error: { message: "token invalido " + SEGREDO_DA_META } }), { status: 401 });
+    }
     const corpo = JSON.parse(opcoes.body);
     enviados.push({
       para: corpo.to,
@@ -155,6 +166,36 @@ ok(r.corpo.cliente.atendimentos[0].servico === "Corte", "o mais recente vem prim
 console.log("\n--- Telefone com e sem mascara e a mesma pessoa ---");
 ok(r.corpo.cliente.atendimentos.length === 2,
    "'(11) 98765-4321' e '11987654321' caem no mesmo historico");
+
+// Os erros vao para o log do servidor (console.error), nunca para o navegador.
+const logados = [];
+const consoleErrorOriginal = console.error;
+console.error = (...partes) => { logados.push(partes.map(String).join(" ")); };
+
+console.log("\n--- Falha da Meta (502) nao vaza detalhe ---");
+const TEL_FALHA = "11933334444";
+await registrarAtendimento({
+  dia: "2026-09-12", hora: "11:00", servicoId: "corte", servico: "Corte",
+  local: "barbearia", total: 40, grupo: "g3",
+  nome: "Bruno Lima", telefone: TEL_FALHA, endereco: "", regiao: ""
+});
+metaRecusa = true;
+r = await chamar("POST", "", { acao: "pedir-codigo", telefone: TEL_FALHA });
+metaRecusa = false;
+ok(r.status === 502, "falha no envio responde 502", r);
+ok(JSON.stringify(r.corpo) === JSON.stringify({ erro: "Não consegui enviar o código agora." }),
+   "so a mensagem generica, sem 'detalhe'", r.corpo);
+ok(logados.some((l) => l.includes(SEGREDO_DA_META)), "o motivo real fica no log do servidor", logados);
+
+console.log("\n--- Erro interno (500) nao vaza detalhe ---");
+armazenamentoFora = true; // a leitura do historico estoura
+r = await chamar("GET", "?chave=" + chave);
+armazenamentoFora = false;
+ok(r.status === 500, "erro interno responde 500", r);
+ok(JSON.stringify(r.corpo) === JSON.stringify({ erro: "Erro no servidor." }),
+   "so a mensagem generica, sem 'detalhe'", r.corpo);
+ok(logados.some((l) => l.startsWith("[cliente] erro interno")), "o erro fica no log do servidor", logados);
+console.error = consoleErrorOriginal;
 
 await server.stop();
 rmSync(dir, { recursive: true, force: true });

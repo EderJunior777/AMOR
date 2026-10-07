@@ -335,6 +335,25 @@ ok(aceitos === 1 && recusados === 11, `exatamente 1 passou e 11 levaram 409 (pas
 r = await chamar("GET", `?dia=${DIA2}`);
 ok(r.corpo.ocupados.length === 1, "so um bloco ficou gravado no dia", r.corpo.ocupados);
 
+console.log("\n--- Erro interno (500) nao vaza detalhe ---");
+// O armazenamento recusa tudo; o erro vai para o log do servidor, nunca
+// para o navegador.
+const fetchOriginal = globalThis.fetch;
+globalThis.fetch = async (url, opcoes) =>
+  String(url).startsWith(`http://localhost:${port}`)
+    ? new Response("falha simulada", { status: 400 })
+    : fetchOriginal(url, opcoes);
+const logados = [];
+const consoleErrorOriginal = console.error;
+console.error = (...partes) => { logados.push(partes.map(String).join(" ")); };
+r = await chamar("GET", `?dia=${DIA2}`);
+console.error = consoleErrorOriginal;
+globalThis.fetch = fetchOriginal;
+ok(r.status === 500, "erro interno responde 500", r);
+ok(JSON.stringify(r.corpo) === JSON.stringify({ erro: "Erro no servidor da agenda." }),
+   "so a mensagem generica, sem 'detalhe'", r.corpo);
+ok(logados.some((l) => l.startsWith("[agenda] erro interno")), "o erro fica no log do servidor", logados);
+
 await server.stop();
 rmSync(dir, { recursive: true, force: true });
 

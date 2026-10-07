@@ -365,7 +365,9 @@ export default async (req) => {
 
     return json({ erro: "Método não suportado." }, 405);
   } catch (e) {
-    return json({ erro: "Erro no servidor da agenda.", detalhe: String(e && e.message) }, 500);
+    // O erro fica no log da funcao; o navegador recebe so a mensagem generica.
+    console.error("[agenda] erro interno:", e);
+    return json({ erro: "Erro no servidor da agenda." }, 500);
   }
 };
 

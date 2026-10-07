@@ -166,7 +166,9 @@ async function pedirCodigo(telefone) {
     try {
       await enviarCodigo(telefone, codigo);
     } catch (e) {
-      return json({ erro: "Não consegui enviar o código agora.", detalhe: String(e.message) }, 502);
+      // A resposta da Meta pode trazer dados da conta: so no log da funcao.
+      console.error("[cliente] falha ao enviar o codigo:", e);
+      return json({ erro: "Não consegui enviar o código agora." }, 502);
     }
 
     await store.setJSON(k, {
@@ -299,7 +301,8 @@ export default async (req) => {
 
     return json({ erro: "Método não suportado." }, 405);
   } catch (e) {
-    return json({ erro: "Erro no servidor.", detalhe: String(e && e.message) }, 500);
+    console.error("[cliente] erro interno:", e);
+    return json({ erro: "Erro no servidor." }, 500);
   }
 };
 
