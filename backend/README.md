@@ -1,7 +1,11 @@
 # CLEISON: backend (Laravel + PostgreSQL)
 
-Etapa 2: agenda integrada. **API pública v1 implementada** (`/api/v1/*`, domínio
-`ReservarHorario`). Sem painel, login, MFA nem confirmação HTTP ainda (etapa 3).
+Etapa 3 (administração) **em andamento** na branch `etapa-3-painel`, sobre a
+etapa 2 (API pública v1 em `/api/v1/*`, domínio `ReservarHorario`). Prontos:
+painel em `/painel` com login, equipe, Pedidos, Agenda e Conta (Fases 1 a 3).
+Falta o teste num iPhone de verdade e a **Fase 4, MFA**: até lá, o painel só
+pode ser usado em `localhost` ou Wi-Fi de confiança, com dados de
+demonstração (veja "Ações humanas pendentes", mais abaixo).
 Arquitetura e decisões: [`../docs/ARQUITETURA.md`](../docs/ARQUITETURA.md).
 Relatório da revisão: [`../docs/REVISAO-ETAPA-1.md`](../docs/REVISAO-ETAPA-1.md).
 

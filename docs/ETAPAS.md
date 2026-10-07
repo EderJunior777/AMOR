@@ -3,8 +3,8 @@
 | # | Etapa | Estado |
 |---|---|---|
 | 1 | Fundação PHP/SQL | **Entregue e revisada** (24/09/2026; revisão 2 com correções pós-revisão externa), verificável localmente |
-| 2 | Agenda integrada (API + integração mínima no site) | **Implementada na branch etapa-2-agenda, PR em revisão** |
-| 3 | Administração e operação (login, MFA, permissões, painel) | Não iniciada |
+| 2 | Agenda integrada (API + integração mínima no site) | **Entregue** (PR #2 juntado na `main`) |
+| 3 | Administração e operação (login, MFA, permissões, painel) | **Em andamento** na branch `etapa-3-painel`: Fases 1 a 3 prontas; falta o teste no iPhone e a Fase 4 (MFA) |
 | 4 | Recebimentos | Não iniciada |
 | 5 | Fechamento dos recebimentos registrados | Não iniciada |
 | 6 | Homologação e implantação | Não iniciada |
@@ -108,6 +108,25 @@ dos Blobs (etapa 6).
 > Detalhes: [`frontend/README.md`](../frontend/README.md).
 
 ## Etapa 3: administração
+
+> **Estado (07/10/2026): em andamento** na branch `etapa-3-painel`.
+>
+> - **Fase 1, pronta:** auditoria de acessos (só inserção), equipe (o
+>   proprietário cria, desativa, reativa e redefine a senha de barbeiro e
+>   recepção), policies com matriz de IDOR e cabeçalhos de segurança do painel.
+> - **Fase 2, pronta:** login por e-mail e senha, sessão no banco sem IP nem
+>   user-agent, cookie `__Host-`/`Secure`, CSRF, troca obrigatória da senha
+>   temporária e limites de tentativa que contam só falhas (a contagem vem
+>   antes do bcrypt; o login certo devolve a tentativa).
+> - **Fase 3, pronta:** telas do painel no celular: Pedidos (confirmar,
+>   recusar, avisar o cliente no WhatsApp), Agenda (iniciar, concluir, não
+>   compareceu, cancelar com motivo), Equipe e Conta.
+> - **Falta:** o teste num iPhone de verdade (`ligar-para-celular.bat`; até
+>   agora só WebKit simulado e Chrome no computador) e a **Fase 4, MFA**
+>   (TOTP proposto, decisão pendente 17). Sem MFA, o painel só pode ser usado
+>   em `localhost` ou Wi-Fi de confiança, com dados de demonstração.
+
+Escopo:
 Login individual, sessão segura, revogação, limites de tentativa, MFA por
 usuário (cada um cadastra o seu), recuperação segura, papéis no servidor
 (policies), agenda diária/semanal, cadastros, atendimento espontâneo,
